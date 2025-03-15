@@ -9,10 +9,20 @@ String version_filename = project.version_filename
 if (file(version_filename).exists()) auto_update_version = file(version_filename).text.trim() as Integer
 else new File(projectDir, version_filename).text = auto_update_version as String
 
-tasks.register('updateVersion') {
-	new File(projectDir, version_filename).text = auto_update_version + 1 as String
+gradle.taskGraph.afterTask { Task task, TaskState state ->
+	if (state.failure) {
+		println "Task ${task.path} failed with exception: ${state.failure.message}"
+	}
 }
-assemble.finalizedBy(updateVersion)
+gradle.buildFinished { result ->
+	if (result.failure) {
+		println "Build failed due to: ${result.failure.message}"
+	} else {
+		new File(projectDir, version_filename).text = auto_update_version + 1 as String
+
+		println "Yoooo project version ${file(version_filename).text.trim()} just dropped"
+	}
+}
 
 version = "1.0.${file(version_filename).text.trim()}+${project.minecraft_version}"
 group = project.maven_group
