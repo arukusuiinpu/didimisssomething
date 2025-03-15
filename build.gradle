@@ -1,0 +1,98 @@
+plugins {
+	id 'fabric-loom' version '1.10-SNAPSHOT'
+	id 'maven-publish'
+}
+
+int auto_update_version = 0
+if (file(project.version_filename).exists()) {
+	auto_update_version = file(project.version_filename).text.trim() as Integer
+}
+
+String version_filename = project.version_filename
+tasks.register('updateVersion') {
+	auto_update_version += 1
+
+	new File(projectDir, version_filename).text = auto_update_version as String
+}
+
+assemble.finalizedBy(updateVersion)
+
+new File(projectDir, project.version_filename).text = auto_update_version as String
+
+version = "1.0.${file(project.version_filename).text.trim()}+${project.minecraft_version}"
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"didimisssomething" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+
+}
+
+fabricApi {
+	configureDataGeneration {
+		client = true
+	}
+}
+
+dependencies {
+	minecraft "net.minecraft:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": inputs.properties.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+}
+
+java {
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+	inputs.property "archivesName", project.base.archivesName
+
+	from("LICENSE") {
+		rename { "${it}_${inputs.properties.archivesName}"}
+	}
+}
+
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			artifactId = project.archives_base_name
+			from components.java
+		}
+	}
+
+	repositories {
+
+	}
+}
