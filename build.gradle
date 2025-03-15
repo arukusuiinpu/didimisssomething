@@ -4,22 +4,17 @@ plugins {
 }
 
 int auto_update_version = 0
-if (file(project.version_filename).exists()) {
-	auto_update_version = file(project.version_filename).text.trim() as Integer
-}
-
 String version_filename = project.version_filename
+
+if (file(version_filename).exists()) auto_update_version = file(version_filename).text.trim() as Integer
+else new File(projectDir, version_filename).text = auto_update_version as String
+
 tasks.register('updateVersion') {
-	auto_update_version += 1
-
-	new File(projectDir, version_filename).text = auto_update_version as String
+	new File(projectDir, version_filename).text = auto_update_version + 1 as String
 }
-
 assemble.finalizedBy(updateVersion)
 
-new File(projectDir, project.version_filename).text = auto_update_version as String
-
-version = "1.0.${file(project.version_filename).text.trim()}+${project.minecraft_version}"
+version = "1.0.${file(version_filename).text.trim()}+${project.minecraft_version}"
 group = project.maven_group
 
 base {
