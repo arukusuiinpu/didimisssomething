@@ -3,42 +3,25 @@
 	"id": "didimisssomething",
 	"version": "${version}",
 	"name": "Did I miss something?",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A handsome mod which automatically downloads the latest modpack from a specified repository.",
 	"authors": [
-		"Me!"
+		"norivensuu"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/arukusuiinpu",
+		"sources": "https://github.com/arukusuiinpu/didimisssomething/"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/didimisssomething/icon.png",
 	"environment": "*",
 	"entrypoints": {
-		"main": [
+		"preLaunch": [
 			"norivensuu.didimisssomething.DidIMissSomething"
-		],
-		"client": [
-			"norivensuu.didimisssomething.DidIMissSomethingClient"
-		],
-		"fabric-datagen": [
-			"norivensuu.didimisssomething.DidIMissSomethingDataGenerator"
 		]
 	},
-	"mixins": [
-		"didimisssomething.mixins.json",
-		{
-			"config": "didimisssomething.client.mixins.json",
-			"environment": "client"
-		}
-	],
 	"depends": {
 		"fabricloader": ">=0.16.10",
-		"minecraft": "~1.21.4",
-		"java": ">=21",
-		"fabric-api": "*"
-	},
-	"suggests": {
-		"another-mod": "*"
+		"minecraft": "~1.21.1",
+		"java": ">=21"
 	}
 }
