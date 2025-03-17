@@ -219,9 +219,9 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         try {
             createUpdateModsBatFile(latestRelease);
 
-            ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "start", new File("").getAbsolutePath() + "\\didimisssomething\\updateModsAndRestart.bat");
-            Process process = pb.start();
-            LOGGER.info("updateModsAndRestart.bat executed successfully: {}", process);
+            Process process = Runtime.getRuntime().exec(new String[] {"cmd", "/c", "start " + new File("").getAbsolutePath() + "\\didimisssomething\\updateModsAndRestart.bat"});
+
+            LOGGER.info("updateModsAndRestart.bat executed successfully: {}", process.info());
         } catch (IOException e) {
             e.printStackTrace();
         }
