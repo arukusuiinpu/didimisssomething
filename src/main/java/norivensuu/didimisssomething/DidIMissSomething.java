@@ -1,6 +1,26 @@
 package norivensuu.didimisssomething;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
+import net.fabricmc.loader.api.metadata.ModMetadata;
+import net.fabricmc.loader.api.metadata.ModOrigin;
+import net.fabricmc.loader.impl.FabricLoaderImpl;
+import net.fabricmc.loader.impl.ModContainerImpl;
+import net.fabricmc.loader.impl.discovery.*;
+import net.fabricmc.loader.impl.game.GameProvider;
+import net.fabricmc.loader.impl.launch.knot.Knot;
+import net.fabricmc.loader.impl.launch.knot.KnotClient;
+import net.fabricmc.loader.impl.metadata.DependencyOverrides;
+import net.fabricmc.loader.impl.metadata.LoaderModMetadata;
+import net.fabricmc.loader.impl.metadata.VersionOverrides;
+import net.fabricmc.loader.impl.util.SystemProperties;
+import net.fabricmc.loader.impl.util.log.Log;
+import net.fabricmc.loader.impl.util.log.LogCategory;
+import net.minecraft.block.CropBlock;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.main.Main;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
@@ -10,13 +30,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Enumeration;
-import java.util.List;
+import java.security.MessageDigest;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -25,11 +51,80 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    @Override
-    public void onPreLaunch() {
+    static {
         LOGGER.info("Haiiii my little meow meows!");
 
-        didIMissSomething(Config.getApiURL(), Config.getGithubToken());
+        didIMissSomething(DidIMissSomething.Config.getApiURL(), DidIMissSomething.Config.getGithubToken());
+    }
+
+    @Override
+    public void onPreLaunch() {
+
+    }
+
+    public static boolean checkModsAdditionalFolder() {
+        LOGGER.info("Checking mods-additional...");
+        File modsAdditional = new File("mods-additional");
+        if (!modsAdditional.exists()) {
+            modsAdditional.mkdirs();
+        }
+
+        String currentHash = computeFolderHash(modsAdditional);
+        File stateFile = new File("didimisssomething/mods-additional-state.txt");
+        String previousHash = "";
+        if (stateFile.exists()) {
+            try {
+                previousHash = new String(Files.readAllBytes(stateFile.toPath()), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (!currentHash.equals(previousHash)) {
+            try {
+                Files.write(stateFile.toPath(), currentHash.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            LOGGER.info("mods-additional folder has changed. Restarting game...");
+            return false;
+        }
+        else {
+            LOGGER.info("There were no additional mods :>");
+            return true;
+        }
+    }
+
+    public static String computeFolderHash(File folder) {
+        List<String> fileData = new ArrayList<>();
+        File[] files = folder.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    fileData.add(computeFolderHash(file));
+                } else {
+                    fileData.add(file.getAbsolutePath() + file.lastModified() + file.length());
+                }
+            }
+        }
+        Collections.sort(fileData);
+        StringBuilder sb = new StringBuilder();
+        for (String s : fileData) {
+            sb.append(s);
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
+            BigInteger bigInt = new BigInteger(1, digest);
+            String hashText = bigInt.toString(16);
+            while (hashText.length() < 32) {
+                hashText = "0" + hashText;
+            }
+            return hashText;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
     }
 
     public static class Config {
@@ -76,22 +171,29 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
     public static boolean didIMissSomething(String apiURL, String githubToken) {
         if (apiURL != null && !apiURL.equals("PLACE_YOUR_API_URL_IN_HERE")) {
             String latestRelease = getTheLatestRelease(apiURL, githubToken);
-            if (!checkTheLatestRelease(new File("release.txt"), latestRelease)) {
+            File folder = new File("didimisssomething/");
+            if (!folder.exists()) folder.mkdir();
+            if (!checkTheLatestRelease(new File("didimisssomething/release.txt"), latestRelease)) {
                 LOGGER.info("Downloading release {}...", latestRelease);
 
-                File zip = downloadTheLatestRelease(apiURL, new File("downloads/latest-release.zip"), githubToken);
+                File zip = downloadTheLatestRelease(apiURL, new File("didimisssomething/downloads/latest-release.zip"), githubToken);
 
                 if (zip != null) {
                     try {
-                        FileUtils.deleteDirectory(new File("downloads/unpacked/latest-release/"));
+                        FileUtils.deleteDirectory(new File("didimisssomething/downloads/unpacked/latest-release/"));
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
                     LOGGER.info("Unpacking '{}'...", zip.getName());
-                    unpackZip(zip, "downloads/unpacked/latest-release/");
+                    unpackZip(zip, "didimisssomething/downloads/unpacked/latest-release/");
                 }
 
                 restartGame(latestRelease);
+            }
+            if (!checkModsAdditionalFolder()) {
+                populateMods(latestRelease);
+
+                System.exit(0);
             }
         }
         else LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File("").getAbsolutePath(), MOD_ID);
@@ -99,17 +201,30 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
     }
 
     public static void restartGame(String latestRelease) {
+        populateMods(latestRelease);
+
+        try {
+            LOGGER.info("RESTARTING in 5 seconds!");
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        checkModsAdditionalFolder();
+
+        System.exit(0);
+    }
+
+    public static void populateMods(String latestRelease) {
         try {
             createUpdateModsBatFile(latestRelease);
 
-            ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "start", "updateModsAndRestart.bat");
+            ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "start", new File("").getAbsolutePath() + "\\didimisssomething\\updateModsAndRestart.bat");
             Process process = pb.start();
             LOGGER.info("updateModsAndRestart.bat executed successfully: {}", process);
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-        System.exit(0);
     }
 
     public static void createUpdateModsBatFile(String latestRelease) {
@@ -119,13 +234,13 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                         + "REM Ensure required directories exist\r\n"
                         + "if not exist \"" + new File("").getAbsolutePath() + "\\mods\" mkdir \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
                         + "if not exist \"" + new File("").getAbsolutePath() + "\\config\" mkdir \"" + new File("").getAbsolutePath() + "\\config\"\r\n"
-                        + "if not exist \"" + new File("").getAbsolutePath() + "\\mods-previous\" mkdir \"" + new File("").getAbsolutePath() + "\\mods-previous\"\r\n"
+                        + "if not exist \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\" mkdir \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
                         + "if not exist \"" + new File("").getAbsolutePath() + "\\mods-additional\" mkdir \"" + new File("").getAbsolutePath() + "\\mods-additional\"\r\n"
                         + "\r\n"
-                        + "echo Copying the mods from \"" + new File("").getAbsolutePath() + "\\mods\" to \"" + new File("").getAbsolutePath() + "\\mods-previous\"...\r\n"
-                        + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\mods-previous\"\r\n"
-                        + "mkdir \"" + new File("").getAbsolutePath() + "\\mods-previous\"\r\n"
-                        + "xcopy /E /I /Y \"" + new File("").getAbsolutePath() + "\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\mods-previous\\\"\r\n"
+                        + "echo Copying the mods from \"" + new File("").getAbsolutePath() + "\\mods\" to \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"...\r\n"
+                        + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
+                        + "mkdir \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
+                        + "xcopy /E /I /Y \"" + new File("").getAbsolutePath() + "\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\\\"\r\n"
                         + "\r\n"
                         + "echo Adding downloaded mods to \"" + new File("").getAbsolutePath() + "\\mods\"...\r\n"
                         + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
@@ -136,14 +251,15 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                         + "mkdir \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
                         + "xcopy /E /I /Y \"" + new File("").getAbsolutePath() + "\\mods-additional\\*\" \"" + new File("").getAbsolutePath() + "\\mods\\\"\r\n"
                         + "\r\n"
-                        + "echo Populating mods and configs from \"" + new File("").getAbsolutePath() + "\\downloads\\unpacked\\latest-release\\*\"\r\n"
-                        + "for /d %%D in (\"" + new File("").getAbsolutePath() + "\\downloads\\unpacked\\latest-release\\*\") do (\r\n"
+                        + "echo Populating mods and configs from \"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\\*\"\r\n"
+                        + "for /d %%D in (\"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\\*\") do (\r\n"
                         + "   set \"source=%%D\"\r\n"
                         + "   if exist \"!source!\\mods\\\" xcopy /E /I /Y \"!source!\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\mods\\\"\r\n"
                         + "   if exist \"!source!\\config\\\" xcopy /E /I /Y \"!source!\\config\\*\" \"" + new File("").getAbsolutePath() + "\\config\\\"\r\n"
+                        + "   if exist \"!source!\\datapacks\\\" xcopy /E /I /Y \"!source!\\datapacks\\*\" \"" + new File("").getAbsolutePath() + "\\datapacks\\\"\r\n"
                         + ")\r\n"
                         + "\r\n"
-                        + "echo latest-release:" + latestRelease + " > \"" + new File("").getAbsolutePath() + "\\release.txt\"\r\n"
+                        + "echo latest-release:" + latestRelease + " > \"" + new File("").getAbsolutePath() + "\\didimisssomething\\release.txt\"\r\n"
                         + "\r\n"
                         + "echo RESTART THE GAME\r\n"
                         + "\r\n"
@@ -151,7 +267,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                         + "timeout 5 > NUL\r\n"
                         + "exit 0\r\n";
 
-        File batFile = new File("updateModsAndRestart.bat");
+        File batFile = new File("didimisssomething\\updateModsAndRestart.bat");
         try {
             Files.write(batFile.toPath(), batContent.getBytes(StandardCharsets.UTF_8));
             System.out.println("Batch file created successfully at: " + batFile.getAbsolutePath());
@@ -244,6 +360,8 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             return destination;
         } catch (IOException e) {
             LOGGER.info("Download failed: {}", e.getMessage());
+
+            System.exit(0);
         }
         return null;
     }
