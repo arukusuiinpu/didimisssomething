@@ -21,6 +21,7 @@ import net.fabricmc.loader.impl.util.log.LogCategory;
 import net.minecraft.block.CropBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.main.Main;
+import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
@@ -54,7 +55,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
     static {
         LOGGER.info("Haiiii my little meow meows!");
 
-        didIMissSomething(DidIMissSomething.Config.getApiURL(), DidIMissSomething.Config.getGithubToken());
+        didIMissSomething(DidIMissSomething.Config.getApiURL(), DidIMissSomething.Config.getGithubToken(), DidIMissSomething.Config.getGitlabToken());
     }
 
     @Override
@@ -142,8 +143,21 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
 
             return config;
         }
-        public static String getData(String data, String defaultData) {
-            File config = getConfig();
+        public static File getMirrorConfig() {
+            File config = new File("config/" + MOD_ID + "-mirror.txt");
+
+            if (!config.exists()) {
+                try {
+                    config.createNewFile();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+
+            return config;
+        }
+        public static String getData(File config, String data, String defaultData) {
 
             if (config != null) {
                 try {
@@ -161,22 +175,38 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             return null;
         }
         public static String getApiURL() {
-            return getData("apiURL", "PLACE_YOUR_API_URL_IN_HERE");
+            if (usingMirror()) return getData(getConfig(), "mirrorApiURL", "PLACE_YOUR_MIRROR_API_URL_IN_HERE");
+            else return getData(getConfig(), "apiURL", "PLACE_YOUR_API_URL_IN_HERE");
         }
         public static String getGithubToken() {
-            return getData("githubToken", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE");
+            return getData(getConfig(), "githubToken", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE");
+        }
+        public static String getGitlabToken() {
+            return getData(getConfig(), "gitlabToken", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE");
+        }
+        public static boolean usingMirror() {
+            return Objects.equals(getData(getMirrorConfig(), "usingMirror", "false"), "true");
         }
     }
 
-    public static boolean didIMissSomething(String apiURL, String githubToken) {
-        if (apiURL != null && !apiURL.equals("PLACE_YOUR_API_URL_IN_HERE")) {
-            String latestRelease = getTheLatestRelease(apiURL, githubToken);
+    public static boolean didIMissSomething(String apiURL, String githubToken, String gitlabToken) {
+        boolean properApi = (Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE")) || (!Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE"));
+        if (apiURL != null && properApi) {
+            boolean isGitLab = apiURL.contains("gitlab.com");
+
+            String latestRelease = isGitLab
+                    ? getTheLatestGitLabRelease(apiURL, gitlabToken)
+                    : getTheLatestRelease(apiURL, githubToken);
+
             File folder = new File("didimisssomething/");
             if (!folder.exists()) folder.mkdir();
+
             if (!checkTheLatestRelease(new File("didimisssomething/release.txt"), latestRelease)) {
                 LOGGER.info("Downloading release {}...", latestRelease);
 
-                File zip = downloadTheLatestRelease(apiURL, new File("didimisssomething/downloads/latest-release.zip"), githubToken);
+                File zip = isGitLab
+                        ? downloadTheLatestGitLabRelease(apiURL, new File("didimisssomething/downloads/latest-release.zip"), gitlabToken)
+                        : downloadTheLatestRelease(apiURL, new File("didimisssomething/downloads/latest-release.zip"), githubToken);
 
                 if (zip != null) {
                     try {
@@ -192,13 +222,14 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             }
             if (!checkModsAdditionalFolder()) {
                 populateMods(latestRelease);
-
                 System.exit(0);
             }
+        } else {
+            LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File("").getAbsolutePath(), MOD_ID);
         }
-        else LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File("").getAbsolutePath(), MOD_ID);
         return false;
     }
+
 
     public static void restartGame(String latestRelease) {
         populateMods(latestRelease);
@@ -346,15 +377,76 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         return null;
     }
 
-    public static File downloadURL(String url, File destination, String githubToken) {
+    public static String getTheLatestGitLabRelease(String apiURL, String gitlabToken) {
+        try {
+            URL url = URI.create(apiURL).toURL();
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
+            connection.setRequestMethod("GET");
+
+            InputStream responseStream = connection.getInputStream();
+            String json = IOUtils.toString(responseStream, StandardCharsets.UTF_8);
+            responseStream.close();
+
+            JSONArray releases = (JSONArray) new JSONParser().parse(json);
+            if (!releases.isEmpty()) {
+                JSONObject latestRelease = (JSONObject) releases.get(0);
+                return (String) latestRelease.get("tag_name");
+            }
+        } catch (IOException | ParseException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static File downloadTheLatestGitLabRelease(String url, File destination, String gitlabToken) {
+        try {
+            HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
+            connection.setRequestMethod("GET");
+
+            InputStream inputStream = connection.getInputStream();
+            String response = new String(inputStream.readAllBytes());
+
+            String zipURL = "";
+            JSONArray releases = (JSONArray) new JSONParser().parse(response);
+            if (!releases.isEmpty()) {
+                JSONObject latestRelease = (JSONObject) releases.getFirst();
+
+                JSONObject assets = (JSONObject) latestRelease.get("assets");
+                JSONArray sources = (JSONArray) assets.get("sources");
+                for (Object sourceObject : sources) {
+                    JSONObject source = (JSONObject) sourceObject;
+
+                    if (source.get("format").equals("zip")) {
+                        zipURL = (String) source.get("url");
+                    }
+                }
+            }
+
+            return downloadURL(zipURL, destination, gitlabToken);
+        } catch (IOException | ParseException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static File downloadURL(String url, File destination, String token) {
         try {
             HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
             connection.setRequestMethod("GET");
-            connection.setRequestProperty("Authorization", "token " + githubToken);
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
+
+            if (url.contains("gitlab.com")) {
+                connection.setRequestProperty("PRIVATE-TOKEN", token);
+            }
+            else {
+                connection.setRequestProperty("Authorization", "token " + token);
+                connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
+            }
 
             InputStream inputStream = connection.getInputStream();
             FileUtils.copyInputStreamToFile(inputStream, destination);
+            inputStream.close();
 
             LOGGER.info("Downloaded to: {}", destination.getAbsolutePath());
             return destination;
