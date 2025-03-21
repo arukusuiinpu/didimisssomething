@@ -250,7 +250,11 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         try {
             createUpdateModsBatFile(latestRelease);
 
-            Process process = Runtime.getRuntime().exec(new String[] {"cmd", "/c", "start " + new File("").getAbsolutePath() + "\\didimisssomething\\updateModsAndRestart.bat"});
+            String command = "start /d \"" + new File("").getAbsolutePath() + "\\didimisssomething\\\" updateModsAndRestart.bat";
+
+            LOGGER.info("Cmd command: " + command);
+
+            Process process = Runtime.getRuntime().exec(new String[] {"cmd", "/c", command});
 
             LOGGER.info("updateModsAndRestart.bat executed successfully: {}", process.info());
         } catch (IOException e) {
@@ -271,7 +275,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                         + "echo Copying the mods from \"" + new File("").getAbsolutePath() + "\\mods\" to \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"...\r\n"
                         + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
                         + "mkdir \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
-                        + "xcopy /E /I /Y \"" + new File("").getAbsolutePath() + "\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\\\"\r\n"
+                        + "xcopy /E /I /Y /H /R /K \"" + new File("").getAbsolutePath() + "\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\\\"\r\n"
                         + "\r\n"
                         + "echo Adding downloaded mods to \"" + new File("").getAbsolutePath() + "\\mods\"...\r\n"
                         + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
@@ -280,14 +284,12 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                         + "echo Adding back mods from \"" + new File("").getAbsolutePath() + "\\mods-additional\"...\r\n"
                         + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
                         + "mkdir \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "xcopy /E /I /Y \"" + new File("").getAbsolutePath() + "\\mods-additional\\*\" \"" + new File("").getAbsolutePath() + "\\mods\\\"\r\n"
+                        + "xcopy /E /I /Y /H /R /K \"" + new File("").getAbsolutePath() + "\\mods-additional\\*\" \"" + new File("").getAbsolutePath() + "\\mods\\\"\r\n"
                         + "\r\n"
                         + "echo Populating mods and configs from \"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\\*\"\r\n"
                         + "for /d %%D in (\"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\\*\") do (\r\n"
                         + "   set \"source=%%D\"\r\n"
-                        + "   if exist \"!source!\\mods\\\" xcopy /E /I /Y \"!source!\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\mods\\\"\r\n"
-                        + "   if exist \"!source!\\config\\\" xcopy /E /I /Y \"!source!\\config\\*\" \"" + new File("").getAbsolutePath() + "\\config\\\"\r\n"
-                        + "   if exist \"!source!\\datapacks\\\" xcopy /E /I /Y \"!source!\\datapacks\\*\" \"" + new File("").getAbsolutePath() + "\\datapacks\\\"\r\n"
+                        + "   if exist \"!source!\\\" xcopy /E /I /Y /H /R /K \"!source!\\*\" \"" + new File("").getAbsolutePath() + "\\\"\r\n"
                         + ")\r\n"
                         + "\r\n"
                         + "echo latest-release:" + latestRelease + " > \"" + new File("").getAbsolutePath() + "\\didimisssomething\\release.txt\"\r\n"
@@ -306,6 +308,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             e.printStackTrace();
         }
     }
+
 
     public static boolean checkTheLatestRelease(File file, String latestRelease) {
         LOGGER.info("Checking the '{}'...", file);
