@@ -1,6 +1,7 @@
 package norivensuu.didimisssomething;
 
 import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
@@ -47,6 +48,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+@Environment(EnvType.CLIENT)
 public class DidIMissSomething implements PreLaunchEntrypoint {
 	public static final String MOD_ID = "didimisssomething";
 
@@ -234,13 +236,6 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
     public static void restartGame(String latestRelease) {
         populateMods(latestRelease);
 
-        try {
-            LOGGER.info("RESTARTING in 5 seconds!");
-            Thread.sleep(5000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
         checkModsAdditionalFolder();
 
         System.exit(0);
@@ -266,33 +261,67 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         String batContent =
                 "@echo off\r\n"
                         + "setlocal EnableDelayedExpansion\r\n"
+                        + "REM Define paths\r\n"
+                        + "set \"MODS_DIR=" + new File("").getAbsolutePath() + "\\mods\"\r\n"
+                        + "set \"CONFIG_DIR=" + new File("").getAbsolutePath() + "\\config\"\r\n"
+                        + "set \"PREV_MODS_DIR=" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
+                        + "set \"ADDITIONAL_MODS_DIR=" + new File("").getAbsolutePath() + "\\mods-additional\"\r\n"
+                        + "set \"DOWNLOADS_DIR=" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\"\r\n"
+                        + "set \"REFERENCE_FILE=" + new File("").getAbsolutePath() + "\\didimisssomething\\reference.txt\"\r\n"
+                        + "set \"RELEASE_FILE=" + new File("").getAbsolutePath() + "\\didimisssomething\\release.txt\"\r\n"
+                        + "\r\n"
+                        + "echo Waiting 5 seconds for minecraft to close...\r\n"
+                        + "timeout 5 > NUL\r\n"
+                        + "\r\n"
                         + "REM Ensure required directories exist\r\n"
-                        + "if not exist \"" + new File("").getAbsolutePath() + "\\mods\" mkdir \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "if not exist \"" + new File("").getAbsolutePath() + "\\config\" mkdir \"" + new File("").getAbsolutePath() + "\\config\"\r\n"
-                        + "if not exist \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\" mkdir \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
-                        + "if not exist \"" + new File("").getAbsolutePath() + "\\mods-additional\" mkdir \"" + new File("").getAbsolutePath() + "\\mods-additional\"\r\n"
+                        + "if not exist \"%MODS_DIR%\" mkdir \"%MODS_DIR%\"\r\n"
+                        + "if not exist \"%CONFIG_DIR%\" mkdir \"%CONFIG_DIR%\"\r\n"
+                        + "if not exist \"%PREV_MODS_DIR%\" mkdir \"%PREV_MODS_DIR%\"\r\n"
+                        + "if not exist \"%ADDITIONAL_MODS_DIR%\" mkdir \"%ADDITIONAL_MODS_DIR%\"\r\n"
                         + "\r\n"
-                        + "echo Copying the mods from \"" + new File("").getAbsolutePath() + "\\mods\" to \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"...\r\n"
-                        + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
-                        + "mkdir \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
-                        + "xcopy /E /I /Y /H /R /K \"" + new File("").getAbsolutePath() + "\\mods\\*\" \"" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\\\"\r\n"
+                        + "REM Backup current mods\r\n"
+                        + "echo Backing up current mods...\r\n"
+                        + "rmdir /S /Q \"%PREV_MODS_DIR%\"\r\n"
+                        + "mkdir \"%PREV_MODS_DIR%\"\r\n"
+                        + "xcopy /E /I /Y /H /R /K \"%MODS_DIR%\\*\" \"%PREV_MODS_DIR%\\\"\r\n"
                         + "\r\n"
-                        + "echo Adding downloaded mods to \"" + new File("").getAbsolutePath() + "\\mods\"...\r\n"
-                        + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "mkdir \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "\r\n"
-                        + "echo Adding back mods from \"" + new File("").getAbsolutePath() + "\\mods-additional\"...\r\n"
-                        + "rmdir /S /Q \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "mkdir \"" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "xcopy /E /I /Y /H /R /K \"" + new File("").getAbsolutePath() + "\\mods-additional\\*\" \"" + new File("").getAbsolutePath() + "\\mods\\\"\r\n"
-                        + "\r\n"
-                        + "echo Populating mods and configs from \"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\\*\"\r\n"
-                        + "for /d %%D in (\"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\\*\") do (\r\n"
-                        + "   set \"source=%%D\"\r\n"
-                        + "   if exist \"!source!\\\" xcopy /E /I /Y /H /R /K \"!source!\\*\" \"" + new File("").getAbsolutePath() + "\\\"\r\n"
+                        + "REM Check if reference file exists\r\n"
+                        + "if exist \"%REFERENCE_FILE%\" (\r\n"
+                        + "    echo Deleting previously installed mods listed in reference file...\r\n"
+                        + "    for /f \"delims=\" %%F in (%REFERENCE_FILE%) do (\r\n"
+                        + "        echo Checking \"%%F\"\r\n"
+                        + "        if exist \"%%F\" (\r\n"
+                        + "            echo Deleting \"%%F\"\r\n"
+                        + "            del /F /Q \"%%F\" 2>nul\r\n"
+                        + "        )\r\n"
+                        + "    )\r\n"
+                        + ") else (\r\n"
+                        + "    echo No reference file found. Deleting everything in mods...\r\n"
+                        + "    rmdir /S /Q \"%MODS_DIR%\"\r\n"
+                        + "    mkdir \"%MODS_DIR%\"\r\n"
                         + ")\r\n"
+                        + "echo. > \"%REFERENCE_FILE%\"\r\n"
                         + "\r\n"
-                        + "echo latest-release:" + latestRelease + " > \"" + new File("").getAbsolutePath() + "\\didimisssomething\\release.txt\"\r\n"
+                        + "REM Restore additional mods\r\n"
+                        + "echo Restoring additional mods...\r\n"
+                        + "xcopy /E /I /Y /H /R /K \"%ADDITIONAL_MODS_DIR%\\*\" \"%MODS_DIR%\\\"\r\n"
+                        + "\r\n"
+                        + "REM Populate mods and configs from new release, storing paths in reference.txt\r\n"
+                        + "echo Populating mods and configs from latest release...\r\n"
+                        + "(for /d %%D in (\"%DOWNLOADS_DIR%\\*\") do (\r\n"
+                        + "    set \"SOURCE=%%D\"\r\n"
+                        + "    for /r \"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release" + "\" %%I in (*) do (\r\n"
+                        + "        set \"line=%%I\"\r\n"
+                        + "        set \"line=!line:%%D\\=" + new File("").getAbsolutePath() + "\\!\"\r\n"
+                        + "        echo !line! >> !REFERENCE_FILE!\r\n"
+                        + "    )\r\n"
+                        + "    if exist \"!SOURCE!\\\" (\r\n"
+                        + "        xcopy /E /I /Y /H /R /K \"!SOURCE!\\*\" \"" + new File("").getAbsolutePath() + "\\\"\r\n"
+                        + "    )\r\n"
+                        + "))\r\n"
+                        + "\r\n"
+                        + "REM Save latest release info\r\n"
+                        + "echo latest-release:" + latestRelease + " > \"%RELEASE_FILE%\"\r\n"
                         + "\r\n"
                         + "echo RESTART THE GAME\r\n"
                         + "\r\n"
