@@ -1,3 +1,4 @@
+
 package norivensuu.didimisssomething;
 
 import net.fabricmc.api.EnvType;
@@ -295,10 +296,6 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                         + "            del /F /Q \"%%F\" 2>nul\r\n"
                         + "        )\r\n"
                         + "    )\r\n"
-                        + ") else (\r\n"
-                        + "    echo No reference file found. Deleting everything in mods...\r\n"
-                        + "    rmdir /S /Q \"%MODS_DIR%\"\r\n"
-                        + "    mkdir \"%MODS_DIR%\"\r\n"
                         + ")\r\n"
                         + "echo. > \"%REFERENCE_FILE%\"\r\n"
                         + "\r\n"
