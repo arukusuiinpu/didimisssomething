@@ -2,26 +2,7 @@ package norivensuu.didimisssomething;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
-import net.fabricmc.loader.api.metadata.ModMetadata;
-import net.fabricmc.loader.api.metadata.ModOrigin;
-import net.fabricmc.loader.impl.FabricLoaderImpl;
-import net.fabricmc.loader.impl.ModContainerImpl;
-import net.fabricmc.loader.impl.discovery.*;
-import net.fabricmc.loader.impl.game.GameProvider;
-import net.fabricmc.loader.impl.launch.knot.Knot;
-import net.fabricmc.loader.impl.launch.knot.KnotClient;
-import net.fabricmc.loader.impl.metadata.DependencyOverrides;
-import net.fabricmc.loader.impl.metadata.LoaderModMetadata;
-import net.fabricmc.loader.impl.metadata.VersionOverrides;
-import net.fabricmc.loader.impl.util.SystemProperties;
-import net.fabricmc.loader.impl.util.log.Log;
-import net.fabricmc.loader.impl.util.log.LogCategory;
-import net.minecraft.block.CropBlock;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.main.Main;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
@@ -32,21 +13,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 @Environment(EnvType.CLIENT)
 public class DidIMissSomething implements PreLaunchEntrypoint {
@@ -203,28 +178,9 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             File folder = new File("didimisssomething/");
             if (!folder.exists()) folder.mkdir();
 
-            if (!checkTheLatestRelease(new File("didimisssomething/release.txt"), latestRelease)) {
-                LOGGER.info("Downloading release {}...", latestRelease);
-
-                File zip = isGitLab
-                        ? downloadTheLatestGitLabRelease(apiURL, new File("didimisssomething/downloads/latest-release.zip"), gitlabToken)
-                        : downloadTheLatestRelease(apiURL, new File("didimisssomething/downloads/latest-release.zip"), githubToken);
-
-                if (zip != null) {
-                    try {
-                        FileUtils.deleteDirectory(new File("didimisssomething/downloads/unpacked/latest-release/"));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    LOGGER.info("Unpacking '{}'...", zip.getName());
-                    unpackZip(zip, "didimisssomething/downloads/unpacked/latest-release/");
-                }
-
-                restartGame(latestRelease);
-            }
-            if (!checkModsAdditionalFolder()) {
-                populateMods(latestRelease);
-                System.exit(0);
+            if (!checkTheLatestRelease(new File("didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
+                checkModsAdditionalFolder();
+                restartGame();
             }
         } else {
             LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File("").getAbsolutePath(), MOD_ID);
@@ -233,106 +189,33 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
     }
 
 
-    public static void restartGame(String latestRelease) {
-        populateMods(latestRelease);
-
-        checkModsAdditionalFolder();
-
-        System.exit(0);
+    public static void restartGame() {
+        createAndLaunchUpdater();
     }
 
-    public static void populateMods(String latestRelease) {
+    public static void createAndLaunchUpdater() {
         try {
-            createUpdateModsBatFile(latestRelease);
+            File updaterJar = new File("didimisssomething/autoupdater.jar");
 
-            String command = "start /d \"" + new File("").getAbsolutePath() + "\\didimisssomething\\\" updateModsAndRestart.bat";
+            try (InputStream in = DidIMissSomething.class.getResourceAsStream("/autoupdater.jar")) {
+                if (in == null) {
+                    LOGGER.error("Unable to locate updater resource (autoupdater.jar)");
+                    return;
+                }
+                updaterJar.getParentFile().mkdirs();
+                Files.copy(in, updaterJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
 
-            LOGGER.info("Cmd command: " + command);
+            String javaHome = System.getProperty("java.home");
+            String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
 
-            Process process = Runtime.getRuntime().exec(new String[] {"cmd", "/c", command});
-
-            LOGGER.info("updateModsAndRestart.bat executed successfully: {}", process.info());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void createUpdateModsBatFile(String latestRelease) {
-        String batContent =
-                "@echo off\r\n"
-                        + "setlocal EnableDelayedExpansion\r\n"
-                        + "REM Define paths\r\n"
-                        + "set \"MODS_DIR=" + new File("").getAbsolutePath() + "\\mods\"\r\n"
-                        + "set \"CONFIG_DIR=" + new File("").getAbsolutePath() + "\\config\"\r\n"
-                        + "set \"PREV_MODS_DIR=" + new File("").getAbsolutePath() + "\\didimisssomething\\mods-previous\"\r\n"
-                        + "set \"ADDITIONAL_MODS_DIR=" + new File("").getAbsolutePath() + "\\mods-additional\"\r\n"
-                        + "set \"DOWNLOADS_DIR=" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release\"\r\n"
-                        + "set \"REFERENCE_FILE=" + new File("").getAbsolutePath() + "\\didimisssomething\\reference.txt\"\r\n"
-                        + "set \"RELEASE_FILE=" + new File("").getAbsolutePath() + "\\didimisssomething\\release.txt\"\r\n"
-                        + "\r\n"
-                        + "echo Waiting 1 second for minecraft to close...\r\n"
-                        + "timeout 1 > NUL\r\n"
-                        + "\r\n"
-                        + "REM Ensure required directories exist\r\n"
-                        + "if not exist \"%MODS_DIR%\" mkdir \"%MODS_DIR%\"\r\n"
-                        + "if not exist \"%CONFIG_DIR%\" mkdir \"%CONFIG_DIR%\"\r\n"
-                        + "if not exist \"%PREV_MODS_DIR%\" mkdir \"%PREV_MODS_DIR%\"\r\n"
-                        + "if not exist \"%ADDITIONAL_MODS_DIR%\" mkdir \"%ADDITIONAL_MODS_DIR%\"\r\n"
-                        + "\r\n"
-                        + "REM Backup current mods\r\n"
-                        + "echo Backing up current mods...\r\n"
-                        + "rmdir /S /Q \"%PREV_MODS_DIR%\"\r\n"
-                        + "mkdir \"%PREV_MODS_DIR%\"\r\n"
-                        + "xcopy /E /I /Y /H /R /K \"%MODS_DIR%\\*\" \"%PREV_MODS_DIR%\\\"\r\n"
-                        + "\r\n"
-                        + "REM Check if reference file exists\r\n"
-                        + "if exist \"%REFERENCE_FILE%\" (\r\n"
-                        + "    echo Deleting previously installed mods listed in reference file...\r\n"
-                        + "    for /f \"delims=\" %%F in (%REFERENCE_FILE%) do (\r\n"
-                        + "        echo Checking \"%%F\"\r\n"
-                        + "        if exist \"%%F\" (\r\n"
-                        + "            echo Deleting \"%%F\"\r\n"
-                        + "            del /F /Q \"%%F\" 2>nul\r\n"
-                        + "        )\r\n"
-                        + "    )\r\n"
-                        + ") else (\r\n"
-                        + "    echo No reference file found. Deleting everything in mods...\r\n"
-                        + "    rmdir /S /Q \"%MODS_DIR%\"\r\n"
-                        + "    mkdir \"%MODS_DIR%\"\r\n"
-                        + ")\r\n"
-                        + "echo. > \"%REFERENCE_FILE%\"\r\n"
-                        + "\r\n"
-                        + "REM Restore additional mods\r\n"
-                        + "echo Restoring additional mods...\r\n"
-                        + "xcopy /E /I /Y /H /R /K \"%ADDITIONAL_MODS_DIR%\\*\" \"%MODS_DIR%\\\"\r\n"
-                        + "\r\n"
-                        + "REM Populate mods and configs from new release, storing paths in reference.txt\r\n"
-                        + "echo Populating mods and configs from latest release...\r\n"
-                        + "(for /d %%D in (\"%DOWNLOADS_DIR%\\*\") do (\r\n"
-                        + "    set \"SOURCE=%%D\"\r\n"
-                        + "    for /r \"" + new File("").getAbsolutePath() + "\\didimisssomething\\downloads\\unpacked\\latest-release" + "\" %%I in (*) do (\r\n"
-                        + "        set \"line=%%I\"\r\n"
-                        + "        set \"line=!line:%%D\\=" + new File("").getAbsolutePath() + "\\!\"\r\n"
-                        + "        echo !line! >> !REFERENCE_FILE!\r\n"
-                        + "    )\r\n"
-                        + "    if exist \"!SOURCE!\\\" (\r\n"
-                        + "        xcopy /E /I /Y /H /R /K \"!SOURCE!\\*\" \"" + new File("").getAbsolutePath() + "\\\"\r\n"
-                        + "    )\r\n"
-                        + "))\r\n"
-                        + "\r\n"
-                        + "REM Save latest release info\r\n"
-                        + "echo latest-release:" + latestRelease + " > \"%RELEASE_FILE%\"\r\n"
-                        + "\r\n"
-                        + "echo RESTART THE GAME\r\n"
-                        + "\r\n"
-                        + "echo This file will close in 5 seconds...\r\n"
-                        + "timeout 5 > NUL\r\n"
-                        + "exit 0\r\n";
-
-        File batFile = new File("didimisssomething\\updateModsAndRestart.bat");
-        try {
-            Files.write(batFile.toPath(), batContent.getBytes(StandardCharsets.UTF_8));
-            System.out.println("Batch file created successfully at: " + batFile.getAbsolutePath());
+            ProcessBuilder pb = new ProcessBuilder(javaBin, "-jar", updaterJar.getAbsolutePath());
+            pb.directory(new File("didimisssomething"));
+            //pb.inheritIO();
+            LOGGER.info("Launching autoupdater.jar...");
+            pb.start();
+            LOGGER.info("DO NOT START MINECRAFT UNTIL THE UPDATER IS DONE!");
+            System.exit(0);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -387,28 +270,6 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         return null;
     }
 
-    public static File downloadTheLatestRelease(String apiUrl, File destination, String githubToken) {
-        try {
-            HttpURLConnection connection = (HttpURLConnection) URI.create(apiUrl).toURL().openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("Authorization", "token " + githubToken);
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
-
-            InputStream inputStream = connection.getInputStream();
-            String response = new String(inputStream.readAllBytes());
-            JSONParser parser = new JSONParser();
-            JSONObject release = (JSONObject) parser.parse(response);
-
-            String zipballUrl = release.getAsString("zipball_url");
-
-            return downloadURL(zipballUrl, destination, githubToken);
-
-        } catch (IOException | ParseException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
     public static String getTheLatestGitLabRelease(String apiURL, String gitlabToken) {
         try {
             URL url = URI.create(apiURL).toURL();
@@ -429,90 +290,5 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             e.printStackTrace();
         }
         return null;
-    }
-
-    public static File downloadTheLatestGitLabRelease(String url, File destination, String gitlabToken) {
-        try {
-            HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-            connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
-            connection.setRequestMethod("GET");
-
-            InputStream inputStream = connection.getInputStream();
-            String response = new String(inputStream.readAllBytes());
-
-            String zipURL = "";
-            JSONArray releases = (JSONArray) new JSONParser().parse(response);
-            if (!releases.isEmpty()) {
-                JSONObject latestRelease = (JSONObject) releases.getFirst();
-
-                JSONObject assets = (JSONObject) latestRelease.get("assets");
-                JSONArray sources = (JSONArray) assets.get("sources");
-                for (Object sourceObject : sources) {
-                    JSONObject source = (JSONObject) sourceObject;
-
-                    if (source.get("format").equals("zip")) {
-                        zipURL = (String) source.get("url");
-                    }
-                }
-            }
-
-            return downloadURL(zipURL, destination, gitlabToken);
-        } catch (IOException | ParseException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    public static File downloadURL(String url, File destination, String token) {
-        try {
-            HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-            connection.setRequestMethod("GET");
-
-            if (url.contains("gitlab.com")) {
-                connection.setRequestProperty("PRIVATE-TOKEN", token);
-            }
-            else {
-                connection.setRequestProperty("Authorization", "token " + token);
-                connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
-            }
-
-            InputStream inputStream = connection.getInputStream();
-            FileUtils.copyInputStreamToFile(inputStream, destination);
-            inputStream.close();
-
-            LOGGER.info("Downloaded to: {}", destination.getAbsolutePath());
-            return destination;
-        } catch (IOException e) {
-            LOGGER.info("Download failed: {}", e.getMessage());
-
-            System.exit(0);
-        }
-        return null;
-    }
-
-    public static boolean unpackZip(File file, String outputDir) {
-        try (java.util.zip.ZipFile zipFile = new ZipFile(file)) {
-            Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                File entryDestination = new File(outputDir,  entry.getName());
-                if (entry.isDirectory()) {
-                    entryDestination.mkdirs();
-                } else {
-                    entryDestination.getParentFile().mkdirs();
-                    try (InputStream in = zipFile.getInputStream(entry);
-                         OutputStream out = new FileOutputStream(entryDestination)) {
-                        IOUtils.copy(in, out);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        return false;
-                    }
-                }
-            }
-            return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
     }
 }
