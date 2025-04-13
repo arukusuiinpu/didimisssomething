@@ -6,7 +6,6 @@ import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
-import net.minidev.json.parser.ParseException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -53,7 +52,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         if (stateFile.exists()) {
             try {
                 previousHash = new String(Files.readAllBytes(stateFile.toPath()), StandardCharsets.UTF_8);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -61,7 +60,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
         if (!currentHash.equals(previousHash)) {
             try {
                 Files.write(stateFile.toPath(), currentHash.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
             LOGGER.info("mods-additional folder has changed. Restarting game...");
@@ -112,7 +111,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             if (!config.exists()) {
                 try {
                     config.createNewFile();
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                     return null;
                 }
@@ -126,7 +125,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             if (!config.exists()) {
                 try {
                     config.createNewFile();
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                     return null;
                 }
@@ -145,7 +144,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                     }
 
                     Files.write(Paths.get(config.toURI()), (data + ":" + defaultData + "\n").getBytes(), StandardOpenOption.APPEND);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
@@ -167,8 +166,10 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
     }
 
     public static boolean didIMissSomething(String apiURL, String githubToken, String gitlabToken) {
+        if (apiURL == null || !URI.create(apiURL).isAbsolute()) return false;
+
         boolean properApi = (Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE")) || (!Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE"));
-        if (apiURL != null && properApi) {
+        if (properApi) {
             boolean isGitLab = apiURL.contains("gitlab.com");
 
             String latestRelease = isGitLab
@@ -216,7 +217,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
             pb.start();
             LOGGER.info("DO NOT START MINECRAFT UNTIL THE UPDATER IS DONE!");
             System.exit(0);
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -244,7 +245,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                 }
             }
             return false;
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return false;
@@ -264,7 +265,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
 
             return release.getAsString("tag_name");
 
-        } catch (IOException | ParseException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
@@ -286,7 +287,7 @@ public class DidIMissSomething implements PreLaunchEntrypoint {
                 JSONObject latestRelease = (JSONObject) releases.get(0);
                 return (String) latestRelease.get("tag_name");
             }
-        } catch (IOException | ParseException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
