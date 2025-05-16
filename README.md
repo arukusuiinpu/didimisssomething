@@ -1,6 +1,6 @@
 # Did I Miss Something?
  
-The project contained in this repository automatically downloads and updates **mods and configs** of your minecraft client according to a child repository.
+The project contained in this repository automatically downloads and updates ~mods and configs~ **everything from the modpack repository** of your minecraft client according to a child repository.
 
 It uses [GitHub Api](https://api.github.com/) to get the **latest release** and populates the game with it.
 
