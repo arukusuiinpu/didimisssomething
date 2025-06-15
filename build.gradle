@@ -1,100 +1,123 @@
 plugins {
-	id 'fabric-loom' version '1.10-SNAPSHOT'
-	id 'maven-publish'
+    id "architectury-plugin" version "3.4-SNAPSHOT" apply false
+    id "dev.architectury.loom" version "1.9.428" apply false
 }
 
-int auto_update_version = 0
-String version_filename = project.version_filename
+tasks.register('updateVersion') {
+    doLast {
+        int auto_update_version = 0
+        String version_filename = rootProject.version_filename
 
-if (file(version_filename).exists()) {
-	auto_update_version = file(version_filename).text.trim() as Integer
+        if (file(version_filename).exists()) {
+            auto_update_version = file(version_filename).text.trim() as Integer
 
-	gradle.addListener(new BuildListener() {
-		@Override
-		void buildFinished(BuildResult result) {
-			if (!result.failure) {
-				new File(projectDir, version_filename).text = auto_update_version + 1 as String
+            gradle.addListener(new BuildListener() {
+                @Override
+                void buildFinished(BuildResult result) {
+                    if (!result.failure) {
+                        new File(projectDir, version_filename).text = auto_update_version + 1 as String
 
-				println "Yoooo project build ${auto_update_version} just dropped"
-			}
-		}
+                        println "Yoooo project build ${auto_update_version} just dropped"
+                    }
+                }
 
-		@Override void settingsEvaluated(Settings settings) {}
-		@Override void projectsLoaded(Gradle gradle) {}
-		@Override void projectsEvaluated(Gradle gradle) {}
-	})
-}
-else new File(projectDir, version_filename).text = auto_update_version as String
-
-version = "1.0.${file(version_filename).text.trim()}+${project.minecraft_version}"
-group = project.maven_group
-
-base {
-	archivesName = project.archives_base_name
+                @Override void settingsEvaluated(Settings settings) {}
+                @Override void projectsLoaded(Gradle gradle) {}
+                @Override void projectsEvaluated(Gradle gradle) {}
+            })
+        }
+        else new File(projectDir, version_filename).text = auto_update_version as String
+    }
 }
 
-repositories {
+def modVersion = "1.0.${file(rootProject.version_filename).text.trim()}+${rootProject.minecraft_version}"
 
+subprojects {
+    apply plugin: 'dev.architectury.loom'
+
+    loom {
+        silentMojangMappingsLicense()
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+        mappings "net.fabricmc:yarn:${rootProject.yarn_mappings}:v2"
+    }
 }
 
-loom {
+allprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
+    apply plugin: "maven-publish"
 
+    base {
+        archivesName = rootProject.archives_base_name
+    }
+
+    version = modVersion
+    group = rootProject.maven_group
+
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        maven {
+            name = 'Forge'
+            url = 'https://files.minecraftforge.net/maven'
+        }
+        maven {
+            name = 'NeoForge'
+            url = 'https://maven.neoforged.net/releases'
+        }
+        maven {
+            name = 'Quilt'
+            url = 'https://maven.quiltmc.org/repository/release'
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release = Integer.parseInt(rootProject.java_version)
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(Integer.parseInt(rootProject.java_version))
+        }
+    }
+
+    java {
+        withSourcesJar()
+    }
 }
 
-dependencies {
-	minecraft "net.minecraft:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-	implementation "net.minidev:json-smart:${project.json_smart_version}"
-	implementation "net.minidev:accessors-smart:${project.json_smart_version}"
+architectury {
+    minecraft = rootProject.minecraft_version
 }
 
-processResources {
-	inputs.property "version", project.version
+tasks.register("unifiedJar", Jar) {
+    archiveClassifier.set("all")
 
-	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
-	}
+    with project(":common").tasks.named("jar").get()
+
+    def platforms = rootProject.enabled_platforms.split(",")
+    if ("fabric" in platforms) {
+        from project(":fabric").tasks.named("remapJar")
+    }
+    if ("forge" in platforms) {
+        from project(":forge").tasks.named("jar")
+    }
+    if ("neoforge" in platforms) {
+        from project(":neoforge").tasks.named("jar")
+    }
+    if ("quilt" in platforms) {
+        from project(":quilt").tasks.named("remapJar")
+    }
 }
 
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
-}
-
-java {
-	withSourcesJar()
-
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
-}
-
-jar {
-	duplicatesStrategy(DuplicatesStrategy.INCLUDE)
-
-	inputs.property "archivesName", project.base.archivesName
-
-	from("LICENSE") {
-		rename { "${it}_${inputs.properties.archivesName}"}
-	}
-	from {
-		configurations.runtimeClasspath.findAll { it.name.contains('json-smart') }.collect { it.isDirectory() ? it : zipTree(it) }
-	}
-	from {
-		configurations.runtimeClasspath.findAll { it.name.contains('accessors-smart') }.collect { it.isDirectory() ? it : zipTree(it) }
-	}
-	exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
-}
-
-publishing {
-	publications {
-		create("mavenJava", MavenPublication) {
-			artifactId = project.archives_base_name
-			from components.java
-		}
-	}
-
-	repositories {
-
-	}
+artifacts {
+    archives unifiedJar
 }

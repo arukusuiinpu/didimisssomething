@@ -1,8 +1,5 @@
 package norivensuu.didimisssomething;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
@@ -22,21 +19,15 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.*;
 
-@Environment(EnvType.CLIENT)
-public class DidIMissSomething implements PreLaunchEntrypoint {
+public class DidIMissSomething {
 	public static final String MOD_ID = "didimisssomething";
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    static {
+    public static void initialize() {
         LOGGER.info("Haiiii my little meow meows!");
 
         didIMissSomething(DidIMissSomething.Config.getApiURL(), DidIMissSomething.Config.getGithubToken(), DidIMissSomething.Config.getGitlabToken());
-    }
-
-    @Override
-    public void onPreLaunch() {
-
     }
 
     public static boolean checkModsAdditionalFolder() {

@@ -1,0 +1,10 @@
+modLoader="javafml"
+loaderVersion="[52,)"
+license="CC0-1.0"
+
+[[mods]]
+modId="didimisssomething"
+version="${version}"
+displayName="Did I miss something?"
+authors = "norivensuu"
+description="A handsome mod which automatically downloads the latest modpack from a specified repository."

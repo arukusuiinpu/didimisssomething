@@ -13,15 +13,14 @@
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/didimisssomething/icon.png",
-	"environment": "*",
+	"environment": "client",
 	"entrypoints": {
 		"preLaunch": [
-			"norivensuu.didimisssomething.DidIMissSomething"
+			"norivensuu.didimisssomething.DidIMissSomethingFabric"
 		]
 	},
 	"depends": {
 		"fabricloader": ">=0.16.10",
-		"minecraft": "~1.21.1",
 		"java": ">=21"
 	}
 }

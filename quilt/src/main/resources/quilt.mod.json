@@ -1,0 +1,41 @@
+{
+	"schema_version": 1,
+	"quilt_loader": {
+		"group": "${group}",
+		"id": "didimisssomething",
+		"version": "${version}",
+		"metadata": {
+			"name": "Did I miss something?",
+			"description": "A handsome mod which automatically downloads the latest modpack from a specified repository.",
+			"contributors": {
+				"norivensuu": "Some random person"
+			},
+			"contact": {
+				"homepage": "https://github.com/arukusuiinpu",
+				"sources": "https://github.com/arukusuiinpu/didimisssomething/"
+			},
+			"license": "CC0-1.0",
+			"icon": "assets/didimisssomething/icon.png"
+		},
+		"intermediate_mappings": "net.fabricmc:intermediary",
+		"entrypoints": {
+			"preLaunch": [
+				"norivensuu.didimisssomething.DidIMissSomethingQuilt"
+			]
+		},
+		"depends": [
+			{
+				"id": "quiltloader",
+				"versions": ">=0.29.0"
+			},
+			{
+				"id": "java",
+				"versions": ">=21"
+			}
+		]
+	},
+	"mixin": "bingus_mod.mixins.json",
+	"minecraft": {
+		"environment": "client"
+	}
+}
