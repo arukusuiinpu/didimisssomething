@@ -24,6 +24,8 @@ public class DidIMissSomething {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+    private static final String projectPath = System.getProperty("user.dir");
+
     public static void initialize() {
         LOGGER.info("Haiiii my little meow meows!");
 
@@ -32,13 +34,13 @@ public class DidIMissSomething {
 
     public static boolean checkModsAdditionalFolder() {
         LOGGER.info("Checking mods-additional...");
-        File modsAdditional = new File("mods-additional");
+        File modsAdditional = new File(projectPath + "/mods-additional");
         if (!modsAdditional.exists()) {
             modsAdditional.mkdirs();
         }
 
         String currentHash = computeFolderHash(modsAdditional);
-        File stateFile = new File("didimisssomething/mods-additional-state.txt");
+        File stateFile = new File(projectPath + "/didimisssomething/mods-additional-state.txt");
         String previousHash = "";
         if (stateFile.exists()) {
             try {
@@ -97,7 +99,16 @@ public class DidIMissSomething {
 
     public static class Config {
         public static File getConfig() {
-            File config = new File("config/" + MOD_ID + ".txt");
+            File config = new File(projectPath + "/config/" + MOD_ID + ".txt");
+
+            if (!config.getParentFile().exists()) {
+                try {
+                    config.getParentFile().mkdirs();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
 
             if (!config.exists()) {
                 try {
@@ -111,10 +122,21 @@ public class DidIMissSomething {
             return config;
         }
         public static File getMirrorConfig() {
-            File config = new File("config/" + MOD_ID + "-mirror.txt");
+            File config = new File(projectPath + "/config/" + MOD_ID + "-mirror.txt");
+
+            if (!config.getParentFile().exists()) {
+                try {
+                    config.getParentFile().mkdirs();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
 
             if (!config.exists()) {
                 try {
+                    LOGGER.info(String.valueOf(config));
+
                     config.createNewFile();
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -125,6 +147,15 @@ public class DidIMissSomething {
             return config;
         }
         public static String getData(File config, String data, String defaultData) {
+
+            if (!config.getParentFile().exists()) {
+                try {
+                    config.getParentFile().mkdirs();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
 
             if (config != null) {
                 try {
@@ -142,8 +173,11 @@ public class DidIMissSomething {
             return null;
         }
         public static String getApiURL() {
-            if (usingMirror()) return getData(getConfig(), "mirrorApiURL", "PLACE_YOUR_MIRROR_API_URL_IN_HERE");
-            else return getData(getConfig(), "apiURL", "PLACE_YOUR_API_URL_IN_HERE");
+            var mirrorApi = getData(getConfig(), "mirrorApiURL", "PLACE_YOUR_MIRROR_API_URL_IN_HERE");
+            var api = getData(getConfig(), "apiURL", "PLACE_YOUR_API_URL_IN_HERE");
+
+            if (usingMirror()) return mirrorApi;
+            else return api;
         }
         public static String getGithubToken() {
             return getData(getConfig(), "githubToken", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE");
@@ -167,15 +201,15 @@ public class DidIMissSomething {
                     ? getTheLatestGitLabRelease(apiURL, gitlabToken)
                     : getTheLatestRelease(apiURL, githubToken);
 
-            File folder = new File("didimisssomething/");
+            File folder = new File(projectPath + "/didimisssomething/");
             if (!folder.exists()) folder.mkdir();
 
-            if (!checkTheLatestRelease(new File("didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
+            if (!checkTheLatestRelease(new File(projectPath + "/didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
                 checkModsAdditionalFolder();
                 restartGame();
             }
         } else {
-            LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File("").getAbsolutePath(), MOD_ID);
+            LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File(projectPath).getAbsolutePath(), MOD_ID);
         }
         return false;
     }
@@ -187,7 +221,7 @@ public class DidIMissSomething {
 
     public static void createAndLaunchUpdater() {
         try {
-            File updaterJar = new File("didimisssomething/autoupdater.jar");
+            File updaterJar = new File(projectPath + "/didimisssomething/autoupdater.jar");
 
             try (InputStream in = DidIMissSomething.class.getResourceAsStream("/autoupdater.jar")) {
                 if (in == null) {
@@ -202,7 +236,7 @@ public class DidIMissSomething {
             String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
 
             ProcessBuilder pb = new ProcessBuilder(javaBin, "-jar", updaterJar.getAbsolutePath());
-            pb.directory(new File("didimisssomething"));
+            pb.directory(new File(projectPath + "/didimisssomething"));
             //pb.inheritIO();
             LOGGER.info("Launching autoupdater.jar...");
             pb.start();

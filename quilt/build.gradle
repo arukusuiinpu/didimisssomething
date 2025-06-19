@@ -1,10 +1,6 @@
-plugins {
-	id "com.github.johnrengelman.shadow" version "7.1.2"
-}
-
 architectury {
 	platformSetupLoomIde()
-	quilt()
+	loader("quilt")
 }
 
 configurations {
@@ -16,17 +12,20 @@ configurations {
 }
 
 dependencies {
-	modImplementation "org.quiltmc:quilt-loader:quilt_loader:${rootProject.quilt_loader_version}"
+	modImplementation "org.quiltmc:quilt-loader:${rootProject.quilt_loader_version}"
+	mappings "net.fabricmc:yarn:${rootProject.yarn_mappings}:v2"
 
 	common(project(path: ":common", configuration: "namedElements")) { transitive false }
 	shadowCommon(project(path: ":common", configuration: "transformProductionQuilt")) { transitive false }
 }
 
 processResources {
-	inputs.property "version": rootProject.version, "group": rootProject.maven_group
+	inputs.property "group", rootProject.maven_group
+	inputs.property "version", rootProject.version
 
 	filesMatching("quilt.mod.json") {
-		expand "version": rootProject.version, "group": rootProject.maven_group
+		expand "group": rootProject.maven_group,
+				"version": rootProject.version
 	}
 }
 
