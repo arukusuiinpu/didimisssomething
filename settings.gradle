@@ -26,7 +26,7 @@ pluginManagement {
 }
 rootProject.name = "didimisssomething"
 include "common"
-include "autoupdater"
+// include "autoupdater" // needs fixing
 
 def properties = new Properties()
 file("gradle.properties").withInputStream {
