@@ -3,30 +3,6 @@ architectury {
 }
 
 dependencies {
-    // We depend on fabric loader here to use the fabric @Environment annotations and get the mixin dependencies
-    // Do NOT use other classes from fabric loader
-    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
-    mappings "net.fabricmc:yarn:${rootProject.yarn_mappings}:v2"
-
     implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
     implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
-}
-
-jar {
-    archiveClassifier.set("common")
-
-    duplicatesStrategy(DuplicatesStrategy.INCLUDE)
-
-    inputs.property "archivesName", rootProject.base.archivesName
-
-    from("LICENSE") {
-        rename { "${it}_${inputs.properties.archivesName}"}
-    }
-    from {
-        configurations.runtimeClasspath.findAll { it.name.contains('json-smart') }.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-    from {
-        configurations.runtimeClasspath.findAll { it.name.contains('accessors-smart') }.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
 }

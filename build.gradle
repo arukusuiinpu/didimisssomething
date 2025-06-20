@@ -1,7 +1,7 @@
 plugins {
-    id "architectury-plugin" version "3.4-SNAPSHOT" apply false
-    id "dev.architectury.loom" version "1.9.428" apply false
-    id "com.github.johnrengelman.shadow" version "7.1.2" apply false
+    id 'dev.architectury.loom' version '1.10-SNAPSHOT' apply false
+    id 'architectury-plugin' version '3.4-SNAPSHOT'
+    id 'com.gradleup.shadow' version '8.3.6' apply false
 }
 
 tasks.register('updateVersion') {
@@ -33,30 +33,22 @@ tasks.register('updateVersion') {
 
 def modVersion = "1.0.${file(rootProject.version_filename).text.trim()}+${rootProject.minecraft_version}"
 
-subprojects {
-    apply plugin: "dev.architectury.loom"
-    apply plugin: "com.github.johnrengelman.shadow"
-
-    loom {
-        silentMojangMappingsLicense()
-    }
-
-    dependencies {
-        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-    }
+architectury {
+    minecraft = project.minecraft_version
 }
 
 allprojects {
-    apply plugin: "java"
-    apply plugin: "architectury-plugin"
-    apply plugin: "maven-publish"
-
-    base {
-        archivesName = rootProject.archives_base_name
-    }
-
-    version = modVersion
     group = rootProject.maven_group
+    version = modVersion
+}
+
+subprojects {
+    apply plugin: 'dev.architectury.loom'
+    apply plugin: 'architectury-plugin'
+    apply plugin: 'maven-publish'
+    apply plugin: 'com.gradleup.shadow'
+
+
 
     repositories {
         mavenCentral()
@@ -79,46 +71,30 @@ allprojects {
         }
     }
 
-    tasks.withType(JavaCompile).configureEach {
-        options.encoding = "UTF-8"
-        options.release = Integer.parseInt(rootProject.java_version)
+    dependencies {
+        minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
+        mappings loom.layered {
+            it.mappings("net.fabricmc:yarn:$rootProject.yarn_mappings:v2")
+            it.mappings("dev.architectury:yarn-mappings-patch-neoforge:$rootProject.yarn_mappings_patch_neoforge_version")
+        }
     }
 
     java {
+        // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+        // if it is present.
+        // If you remove this line, sources will not be generated.
+        withSourcesJar()
+
+        sourceCompatibility = JavaVersion.toVersion(Integer.parseInt(rootProject.java_version))
+        targetCompatibility = JavaVersion.toVersion(Integer.parseInt(rootProject.java_version))
+
         toolchain {
             languageVersion = JavaLanguageVersion.of(Integer.parseInt(rootProject.java_version))
         }
     }
 
-    java {
-        withSourcesJar()
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release = Integer.parseInt(rootProject.java_version)
     }
-}
-
-architectury {
-    minecraft = rootProject.minecraft_version
-}
-
-tasks.register("unifiedJar", Jar) {
-    archiveClassifier.set("all")
-
-    with project(":common").tasks.named("jar").get()
-
-    def platforms = rootProject.enabled_platforms.split(",")
-    if ("fabric" in platforms) {
-        from project(":fabric").tasks.named("remapJar")
-    }
-    if ("forge" in platforms) {
-        from project(":forge").tasks.named("jar")
-    }
-    if ("neoforge" in platforms) {
-        from project(":neoforge").tasks.named("jar")
-    }
-    if ("quilt" in platforms) {
-        from project(":quilt").tasks.named("remapJar")
-    }
-}
-
-artifacts {
-    archives unifiedJar
 }

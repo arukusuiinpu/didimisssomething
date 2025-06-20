@@ -20,7 +20,7 @@
 		"intermediate_mappings": "net.fabricmc:intermediary",
 		"entrypoints": {
 			"preLaunch": [
-				"norivensuu.didimisssomething.DidIMissSomethingQuilt"
+				"norivensuu.didimisssomething.quilt.DidIMissSomethingQuilt"
 			]
 		},
 		"depends": [

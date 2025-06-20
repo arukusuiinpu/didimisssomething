@@ -1,6 +1,7 @@
-package norivensuu.didimisssomething;
+package norivensuu.didimisssomething.fabric;
 
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
+import norivensuu.didimisssomething.DidIMissSomething;
 
 public class DidIMissSomethingFabric implements PreLaunchEntrypoint {
     @Override

@@ -8,16 +8,22 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.InputStream;
 import java.math.BigInteger;
-import java.net.*;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class DidIMissSomething {
 	public static final String MOD_ID = "didimisssomething";
@@ -29,72 +35,35 @@ public class DidIMissSomething {
     public static void initialize() {
         LOGGER.info("Haiiii my little meow meows!");
 
-        didIMissSomething(DidIMissSomething.Config.getApiURL(), DidIMissSomething.Config.getGithubToken(), DidIMissSomething.Config.getGitlabToken());
+        didIMissSomething(Config.getApiURL(), Config.getGithubToken(), Config.getGitlabToken());
     }
 
-    public static boolean checkModsAdditionalFolder() {
-        LOGGER.info("Checking mods-additional...");
-        File modsAdditional = new File(projectPath + "/mods-additional");
-        if (!modsAdditional.exists()) {
-            modsAdditional.mkdirs();
-        }
+    public static boolean didIMissSomething(String apiURL, String githubToken, String gitlabToken) {
+        if (apiURL == null || !URI.create(apiURL).isAbsolute()) {
+            LOGGER.info("Please place a proper apiURL or mirrorApiURL in {}\\config\\\\{}.txt!", new File(projectPath).getAbsolutePath(), MOD_ID);
 
-        String currentHash = computeFolderHash(modsAdditional);
-        File stateFile = new File(projectPath + "/didimisssomething/mods-additional-state.txt");
-        String previousHash = "";
-        if (stateFile.exists()) {
-            try {
-                previousHash = new String(Files.readAllBytes(stateFile.toPath()), StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        if (!currentHash.equals(previousHash)) {
-            try {
-                Files.write(stateFile.toPath(), currentHash.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            LOGGER.info("mods-additional folder has changed. Restarting game...");
             return false;
         }
-        else {
-            LOGGER.info("There were no additional mods :>");
-            return true;
-        }
-    }
 
-    public static String computeFolderHash(File folder) {
-        List<String> fileData = new ArrayList<>();
-        File[] files = folder.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    fileData.add(computeFolderHash(file));
-                } else {
-                    fileData.add(file.getAbsolutePath() + file.lastModified() + file.length());
-                }
+        boolean properApi = (Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE")) || (!Config.usingMirror() && !apiURL.equals("PLACE_YOUR_API_URL_IN_HERE"));
+        if (properApi) {
+            boolean isGitLab = apiURL.contains("gitlab.com");
+
+            String latestRelease = isGitLab
+                    ? getTheLatestGitLabRelease(apiURL, gitlabToken)
+                    : getTheLatestRelease(apiURL, githubToken);
+
+            File folder = new File(projectPath + "/didimisssomething/");
+            if (!folder.exists()) folder.mkdir();
+
+            if (!checkTheLatestRelease(new File(projectPath + "/didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
+                checkModsAdditionalFolder();
+                restartGame();
             }
+        } else {
+            LOGGER.info("Please specify your apiURL or mirrorApiURL in {}\\config\\\\{}.txt!", new File(projectPath).getAbsolutePath(), MOD_ID);
         }
-        Collections.sort(fileData);
-        StringBuilder sb = new StringBuilder();
-        for (String s : fileData) {
-            sb.append(s);
-        }
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
-            BigInteger bigInt = new BigInteger(1, digest);
-            String hashText = bigInt.toString(16);
-            while (hashText.length() < 32) {
-                hashText = "0" + hashText;
-            }
-            return hashText;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "";
-        }
+        return false;
     }
 
     public static class Config {
@@ -190,30 +159,70 @@ public class DidIMissSomething {
         }
     }
 
-    public static boolean didIMissSomething(String apiURL, String githubToken, String gitlabToken) {
-        if (apiURL == null || !URI.create(apiURL).isAbsolute()) return false;
-
-        boolean properApi = (Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE")) || (!Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE"));
-        if (properApi) {
-            boolean isGitLab = apiURL.contains("gitlab.com");
-
-            String latestRelease = isGitLab
-                    ? getTheLatestGitLabRelease(apiURL, gitlabToken)
-                    : getTheLatestRelease(apiURL, githubToken);
-
-            File folder = new File(projectPath + "/didimisssomething/");
-            if (!folder.exists()) folder.mkdir();
-
-            if (!checkTheLatestRelease(new File(projectPath + "/didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
-                checkModsAdditionalFolder();
-                restartGame();
-            }
-        } else {
-            LOGGER.info("Please specify your apiURL in {}config\\{}.txt!", new File(projectPath).getAbsolutePath(), MOD_ID);
+    public static boolean checkModsAdditionalFolder() {
+        LOGGER.info("Checking mods-additional...");
+        File modsAdditional = new File(projectPath + "/mods-additional");
+        if (!modsAdditional.exists()) {
+            modsAdditional.mkdirs();
         }
-        return false;
+
+        String currentHash = computeFolderHash(modsAdditional);
+        File stateFile = new File(projectPath + "/didimisssomething/mods-additional-state.txt");
+        String previousHash = "";
+        if (stateFile.exists()) {
+            try {
+                previousHash = new String(Files.readAllBytes(stateFile.toPath()), StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (!currentHash.equals(previousHash)) {
+            try {
+                Files.write(stateFile.toPath(), currentHash.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            LOGGER.info("mods-additional folder has changed. Restarting game...");
+            return false;
+        }
+        else {
+            LOGGER.info("There were no additional mods :>");
+            return true;
+        }
     }
 
+    public static String computeFolderHash(File folder) {
+        List<String> fileData = new ArrayList<>();
+        File[] files = folder.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    fileData.add(computeFolderHash(file));
+                } else {
+                    fileData.add(file.getAbsolutePath() + file.lastModified() + file.length());
+                }
+            }
+        }
+        Collections.sort(fileData);
+        StringBuilder sb = new StringBuilder();
+        for (String s : fileData) {
+            sb.append(s);
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
+            BigInteger bigInt = new BigInteger(1, digest);
+            String hashText = bigInt.toString(16);
+            while (hashText.length() < 32) {
+                hashText = "0" + hashText;
+            }
+            return hashText;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
 
     public static void restartGame() {
         createAndLaunchUpdater();

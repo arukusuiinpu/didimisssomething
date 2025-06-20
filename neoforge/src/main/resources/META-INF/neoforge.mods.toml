@@ -1,10 +1,26 @@
-modLoader="javafml"
-loaderVersion="[52,)"
-license="CC0-1.0"
+modLoader = "javafml" # Still used in NeoForge, but interpreted differently
+loaderVersion = "[4,)" # Required by NeoForge, do NOT use javafml:52
+license = "CC0-1.0"
 
 [[mods]]
-modId="didimisssomething"
-version="${version}"
-displayName="Did I miss something?"
+modId = "didimisssomething"
+version = "${version}" # Usually set via Gradle
+displayName = "Did I miss something?"
 authors = "norivensuu"
-description="A handsome mod which automatically downloads the latest modpack from a specified repository."
+description = "A handsome mod which automatically downloads the latest modpack from a specified repository."
+
+# NeoForge dependency
+[[dependencies.didimisssomething]]
+modId = "neoforge"
+mandatory = true
+versionRange = "[21.1.179,)"
+ordering = "NONE"
+side = "BOTH"
+
+# Minecraft version dependency
+[[dependencies.didimisssomething]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"

@@ -16,7 +16,7 @@
 	"environment": "client",
 	"entrypoints": {
 		"preLaunch": [
-			"norivensuu.didimisssomething.DidIMissSomethingFabric"
+			"norivensuu.didimisssomething.fabric.DidIMissSomethingFabric"
 		]
 	},
 	"depends": {
