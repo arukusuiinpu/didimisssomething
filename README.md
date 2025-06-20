@@ -20,7 +20,7 @@ Ohhhh that's simple, *if doing this for the first time* just **create a new repo
 
 Then go in the configs of your client with the mod installed. Start the client once if **didimisssomething.txt** and **didimisssomething-mirror.txt** do not exist in that folder. After that put the correct data into them (**Can I use it with my own repository?** part).
 
-**If you already have an established repository**, all you need to do now is to make a **new release** on the and make sure to mark it as the **latest release**.
+**If you already have an established repository**, all you need to do now is to make a **new release** and make sure to mark it as the **latest release**.
 
 # What loader does this mod support?
 
