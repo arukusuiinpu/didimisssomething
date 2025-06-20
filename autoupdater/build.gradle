@@ -1,0 +1,32 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    implementation "commons-io:commons-io:${project.commons_io_version}"
+    implementation "com.googlecode.juniversalchardet:juniversalchardet:${project.juniversalchardet_version}"
+
+    implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
+    implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
+}
+
+// def includeLibsWith(name) {
+//     configurations.runtimeClasspath.findAll { it.name.contains(name) }.collect {
+//         it.isDirectory() ? it : zipTree(it)
+//     }
+// }
+
+jar {
+    duplicatesStrategy(DuplicatesStrategy.INCLUDE)
+
+    manifest {
+        attributes 'Main-Class': 'norivensuu.autoupdater.Main'
+    }
+
+    // from(includeLibsWith('commons-io'))
+    // from(includeLibsWith('juniversalchardet'))
+    // from(includeLibsWith('json-smart'))
+    // from(includeLibsWith('accessors-smart'))
+
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}

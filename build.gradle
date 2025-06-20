@@ -48,8 +48,6 @@ subprojects {
     apply plugin: 'maven-publish'
     apply plugin: 'com.gradleup.shadow'
 
-
-
     repositories {
         mavenCentral()
         gradlePluginPortal()
