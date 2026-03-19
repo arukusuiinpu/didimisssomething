@@ -1,4 +1,0 @@
-apiURL:https://api.github.com/repos/arukusuiinpu/host/releases/latest
-githubToken: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
-gitlabToken:glpat-pvpyB4Y6iMcGNpH9hBLj
-mirrorApiURL:https://gitlab.com/api/v4/projects/68086587/releases
