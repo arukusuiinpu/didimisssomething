@@ -24,7 +24,7 @@ Then go to the configs of your client with the mod installed. Start the client o
 
 # What loader does this mod support?
 
-**DidIMissSomething does not use anything from the minecraft's code, and sooo any!** Any loader is supported if you can hook into it's loading cycle.
+**DidIMissSomething does not use anything from the minecraft's code, and sooo any!** Any loader is supported if you can hook into its loading cycle.
 
 As of now, this project is **Architectury-based** and **1.21.1** with support for **fabric** and **neoforge** implemented (I've tried to implement quilt and forge, yet had no time to do so properly).
 
