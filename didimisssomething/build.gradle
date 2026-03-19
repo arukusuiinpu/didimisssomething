@@ -1,0 +1,93 @@
+plugins {
+    id 'dev.architectury.loom'
+    id 'architectury-plugin'
+    id 'com.github.johnrengelman.shadow'
+    id 'maven-publish'
+}
+
+architectury {
+    minecraft = rootProject.minecraft_version
+}
+
+configurations {
+    shadowOnly
+}
+
+dependencies {
+    shadowOnly "net.minidev:json-smart:${rootProject.json_smart_version}"
+    shadowOnly "net.minidev:accessors-smart:${rootProject.json_smart_version}"
+
+    shadowOnly (project(":common")) { transitive = false }
+//    shadowOnly (project(":iinpulib-gradle")) { transitive = false }
+
+    def platforms = rootProject.enabled_platforms.split(",")
+
+    for (int i = 0; i < platforms.size(); i++) {
+        shadowOnly(project(":${platforms[i]}")) {
+            transitive = false
+        }
+    }
+}
+
+java {
+    withSourcesJar()
+}
+
+tasks.named("sourcesJar").configure {
+    archiveBaseName.set(rootProject.archives_base_name)
+    archiveClassifier.set('sources')
+}
+
+shadowJar {
+    archiveBaseName.set(rootProject.archives_base_name)
+    archiveClassifier.set('')
+    zip64 true
+
+    configurations = [project.configurations.shadowOnly]
+
+    includeEmptyDirs = false
+
+    exclude 'org/objectweb/asm/**'
+    exclude 'META-INF/maven/**'
+
+    relocate 'net.minidev.json', "${rootProject.group}.shadow.json"
+    relocate 'net.minidev.asm', "${rootProject.group}.shadow.minidev.asm"
+}
+
+tasks.build.dependsOn shadowJar
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            groupId = rootProject.maven_group
+            artifactId = rootProject.archives_base_name
+            version = project.version
+
+            artifact(shadowJar) {
+                builtBy(shadowJar)
+            }
+            artifact(sourcesJar)
+        }
+    }
+
+    repositories {
+        maven {
+            url = version.toString().contains("snapshot") || version.toString().contains("unstable") ?
+                    "https://repo.repsy.io/mvn/arukusuiinpu/central/snapshots" :
+                    "https://repo.repsy.io/mvn/arukusuiinpu/central/releases"
+            credentials {
+                username = repsyUsername
+                password = repsyPassword
+            }
+        }
+    }
+}
+
+tasks.named("publish").configure {
+    doLast {
+        println "Artifacts published in 'mavenJava' publication:"
+        publishing.publications.mavenJava.artifacts.each { artifact ->
+            println " - file: ${artifact.file}, type: ${artifact.extension}, classifier: ${artifact.classifier ?: 'none'}"
+        }
+    }
+}

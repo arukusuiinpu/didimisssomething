@@ -2,19 +2,50 @@ plugins {
     id 'java'
 }
 
+tasks.register('updateVersion') {
+    doLast {
+        int auto_update_version = 0
+        String version_filename = rootProject.version_filename
+
+        if (file(version_filename).exists()) {
+            auto_update_version = file(version_filename).text.trim() as Integer
+
+            gradle.addListener(new BuildListener() {
+                @Override
+                void buildFinished(BuildResult result) {
+                    if (!result.failure) {
+                        new File(projectDir, version_filename).text = auto_update_version + 1 as String
+
+                        println "Yoooo project build ${auto_update_version} just dropped"
+                    }
+                }
+
+                @Override void settingsEvaluated(Settings settings) {}
+                @Override void projectsLoaded(Gradle gradle) {}
+                @Override void projectsEvaluated(Gradle gradle) {}
+            })
+        }
+        else new File(projectDir, version_filename).text = auto_update_version as String
+    }
+}
+
+def modVersion = "1.0.${file(rootProject.version_filename).text.trim()}"
+
+version = modVersion
+
 dependencies {
     implementation "commons-io:commons-io:${project.commons_io_version}"
     implementation "com.googlecode.juniversalchardet:juniversalchardet:${project.juniversalchardet_version}"
 
-    implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
-    implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
+    implementation "net.minidev:json-smart:${project.json_smart_version}"
+    implementation "net.minidev:accessors-smart:${project.json_smart_version}"
 }
 
-// def includeLibsWith(name) {
-//     configurations.runtimeClasspath.findAll { it.name.contains(name) }.collect {
-//         it.isDirectory() ? it : zipTree(it)
-//     }
-// }
+def includeLibsWith(name) {
+    configurations.runtimeClasspath.findAll { it.name.contains(name) }.collect {
+        it.isDirectory() ? it : zipTree(it)
+    }
+}
 
 jar {
     duplicatesStrategy(DuplicatesStrategy.INCLUDE)
@@ -23,10 +54,24 @@ jar {
         attributes 'Main-Class': 'norivensuu.autoupdater.Main'
     }
 
-    // from(includeLibsWith('commons-io'))
-    // from(includeLibsWith('juniversalchardet'))
-    // from(includeLibsWith('json-smart'))
-    // from(includeLibsWith('accessors-smart'))
+    from({ includeLibsWith('commons-io') })
+    from({ includeLibsWith('juniversalchardet') })
+    from({ includeLibsWith('json-smart') })
+    from({ includeLibsWith('accessors-smart') })
 
     exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
 }
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.register('copyJarToResources', Copy) {
+    from jar.archiveFile
+    into rootProject.file('common/src/main/resources')
+    rename { "autoupdater.jar" }
+
+    dependsOn jar
+}
+
+build.dependsOn copyJarToResources

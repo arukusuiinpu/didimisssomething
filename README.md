@@ -35,5 +35,3 @@ However, I've left the controls for the build in the main **gradle.properties** 
 # Autoloader?
 
 There is another subproject contained within DidIMissSomething called **Autoloader**. That is the program that runs and downloads everything necessary when there's a new modpack version on the **host repository**.
-
-*IT IS ALSO CURRENTLY NOT IMPLEMENTED AS A PART OF THE BUILD CYCLE!* I mean not *properly*. At the time I've made that I made it into a separate project so merging those two together is needed.

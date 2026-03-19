@@ -138,7 +138,6 @@ class UpdaterFrame extends JFrame {
     private final JButton exitButton;
 
     public UpdaterFrame() {
-        // Uncomment the following if you want to disable native OS decorations (you then need to create your own custom title bar).
         setUndecorated(true);
 
         setTitle("Mod Updater");
@@ -434,19 +433,17 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
             String encoding = detector.getDetectedCharset();
             if (encoding == null) {
-                stateRecorder.changeState("error");
-                log("Unable to detect character encoding of reference.txt");
+                log("Unable to detect encoding. Falling back to UTF-8");
+                encoding = "UTF-8";
             }
-            else {
-                Charset charset = Charset.forName(encoding);
-                List<String> lines = Files.readAllLines(referenceFile.toPath(), charset);
+            Charset charset = Charset.forName(encoding);
+            List<String> lines = Files.readAllLines(referenceFile.toPath(), charset);
 
-                for (String line : lines) {
-                    File file = new File(line.trim());
-                    if (file.exists()) {
-                        FileUtils.forceDelete(file);
-                        log("Deleted: " + file.getAbsolutePath());
-                    }
+            for (String line : lines) {
+                File file = new File(line.trim());
+                if (file.exists()) {
+                    FileUtils.forceDelete(file);
+                    log("Deleted: " + file.getAbsolutePath());
                 }
             }
         }
