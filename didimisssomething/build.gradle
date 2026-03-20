@@ -56,38 +56,40 @@ shadowJar {
 
 tasks.build.dependsOn shadowJar
 
-publishing {
-    publications {
-        create("mavenJava", MavenPublication) {
-            groupId = rootProject.maven_group
-            artifactId = rootProject.archives_base_name
-            version = project.version
+if (project.hasProperty('repsyUsername')) {
+    publishing {
+        publications {
+            create("mavenJava", MavenPublication) {
+                groupId = rootProject.maven_group
+                artifactId = rootProject.archives_base_name
+                version = project.version
 
-            artifact(shadowJar) {
-                builtBy(shadowJar)
+                artifact(shadowJar) {
+                    builtBy(shadowJar)
+                }
+                artifact(sourcesJar)
             }
-            artifact(sourcesJar)
+        }
+
+        repositories {
+            maven {
+                url = version.toString().contains("snapshot") || version.toString().contains("unstable") ?
+                        "https://repo.repsy.io/mvn/arukusuiinpu/central/snapshots" :
+                        "https://repo.repsy.io/mvn/arukusuiinpu/central/releases"
+                credentials {
+                    username = repsyUsername
+                    password = repsyPassword
+                }
+            }
         }
     }
 
-    repositories {
-        maven {
-            url = version.toString().contains("snapshot") || version.toString().contains("unstable") ?
-                    "https://repo.repsy.io/mvn/arukusuiinpu/central/snapshots" :
-                    "https://repo.repsy.io/mvn/arukusuiinpu/central/releases"
-            credentials {
-                username = repsyUsername
-                password = repsyPassword
+    tasks.named("publish").configure {
+        doLast {
+            println "Artifacts published in 'mavenJava' publication:"
+            publishing.publications.mavenJava.artifacts.each { artifact ->
+                println " - file: ${artifact.file}, type: ${artifact.extension}, classifier: ${artifact.classifier ?: 'none'}"
             }
-        }
-    }
-}
-
-tasks.named("publish").configure {
-    doLast {
-        println "Artifacts published in 'mavenJava' publication:"
-        publishing.publications.mavenJava.artifacts.each { artifact ->
-            println " - file: ${artifact.file}, type: ${artifact.extension}, classifier: ${artifact.classifier ?: 'none'}"
         }
     }
 }
