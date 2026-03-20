@@ -508,6 +508,8 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                         destFile.getParentFile().mkdirs();
 
+//                        log(String.format("%s", jarContainsMeta(sourceFile)));
+
                         if (config.get("useModsMetadataToUpdate", false) && sourceFile.getName().endsWith(".jar") && jarContainsMeta(sourceFile)) {
                             var json = readMetaFromJar(sourceFile);
 
@@ -528,7 +530,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                     if (!URI.create(apiURL).isAbsolute()) {
                                         continue;
                                     }
-
                                     boolean isGitLab = apiURL.contains("gitlab.com");
                                     boolean isLastEntry = (i == modEntryList.size() - 1);
 
@@ -541,15 +542,15 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                         frame.setTitle("Release " + modLatestRelease);
 
                                         stateRecorder.changeState("download");
-                                        modDownloadFile = new File(String.format("downloads/%s.zip", json.get("id")));
+                                        modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
 
                                         modDownloadFile.getParentFile().mkdirs();
                                         log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
 
                                         File finalDownloadFile = modDownloadFile;
                                         Future<File> future = modExecutor.submit(() -> isGitLab
-                                                ? downloadTheLatestGitLabRelease(apiURL, finalDownloadFile, token)
-                                                : downloadTheLatestRelease(apiURL, finalDownloadFile, token));
+                                                ? downloadTheLatestGitLabReleaseAssets(apiURL, finalDownloadFile, token)
+                                                : downloadTheLatestReleaseAssets(apiURL, finalDownloadFile, token));
 
                                         if (isLastEntry) {
                                             modDownloadFile = future.get();
@@ -566,35 +567,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 }
                                 modExecutor.shutdown();
 
-                                try {
-                                    stateRecorder.changeState("unpack");
-                                    File modUnpackDir = new File(String.format("downloads/unpacked/%s/", json.get("id")));
-                                    if (modUnpackDir.exists()) {
-                                        FileUtils.deleteDirectory(modUnpackDir);
-                                    }
-                                    modUnpackDir.mkdirs();
-                                    log("Unpacking archive...");
-                                    if (unpackZip(modDownloadFile, modUnpackDir.getAbsolutePath())) {
-                                        log("Archive unpacked successfully.");
-                                    } else {
-                                        log("Failed to unpack archive.");
-                                        stateRecorder.changeState("error");
-                                    }
-
-                                    File selectedJar = findMainJar(modUnpackDir);
-
-                                    if (selectedJar == null) {
-                                        log("No valid .jar found in unpacked release for " + json.get("id"));
-                                        return;
-                                    }
-
-                                    log("Selected jar: " + selectedJar.getAbsolutePath());
-
-                                    sourceFile = selectedJar;
-                                }
-                                catch (Exception e) {
-                                    log(e.getMessage());
-                                }
+                                sourceFile = modDownloadFile;
                             }
                             catch (ClassCastException | AssertionError e) {
                                 log(e.getMessage());
@@ -633,11 +606,12 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         return null;
     }
 
-    private File findMainJar(File dir) throws IOException {
+    private File findMainJar(String name, File dir) throws IOException {
         try (Stream<Path> stream = Files.walk(dir.toPath())) {
             return stream
                     .filter(Files::isRegularFile)
                     .map(Path::toFile)
+                    .filter(f -> f.getName().startsWith(name))
                     .filter(f -> f.getName().endsWith(".jar"))
                     .filter(f -> !f.getName().endsWith("-sources.jar"))
                     .findFirst()
@@ -650,6 +624,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
+//                log(entry.toString());
                 if (!entry.isDirectory() && entry.getName().endsWith("didimisssomething.meta.json")) {
                     return true;
                 }
@@ -720,7 +695,9 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         try {
             HttpURLConnection connection = (HttpURLConnection) URI.create(apiUrl).toURL().openConnection();
             connection.setRequestMethod("GET");
-            connection.setRequestProperty("Authorization", "token " + githubToken);
+            if (githubToken != null && !githubToken.isBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer " + githubToken);
+            }
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
 
             InputStream inputStream = connection.getInputStream();
@@ -731,7 +708,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             return release.getAsString("tag_name");
 
         } catch (IOException | ParseException e) {
-            e.printStackTrace();
+            log(e.getMessage());
         }
         return null;
     }
@@ -758,6 +735,74 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         return null;
     }
 
+    public File downloadTheLatestReleaseAssets(String apiUrl, File destinationDir, String githubToken) {
+        try {
+            HttpURLConnection connection = (HttpURLConnection) URI.create(apiUrl).toURL().openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
+
+            if (githubToken != null && !githubToken.isBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer " + githubToken);
+            }
+
+            int code = connection.getResponseCode();
+
+            InputStream stream = (code >= 200 && code < 300)
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+
+            String response = new String(stream.readAllBytes());
+
+            JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+            JSONObject release = (JSONObject) parser.parse(response);
+
+            JSONArray assets = (JSONArray) release.get("assets");
+
+            if (assets == null || assets.isEmpty()) {
+                log("No assets found in release.");
+                return null;
+            }
+
+            JSONObject selectedAsset = null;
+
+            for (Object obj : assets) {
+                JSONObject asset = (JSONObject) obj;
+                String name = asset.getAsString("name");
+
+                if (name == null) continue;
+
+                if (name.endsWith(".jar") && !name.endsWith("-sources.jar")) {
+                    selectedAsset = asset;
+                    break;
+                }
+            }
+
+            if (selectedAsset == null) {
+                selectedAsset = (JSONObject) assets.get(0);
+            }
+
+            String downloadUrl = selectedAsset.getAsString("browser_download_url");
+            String fileName = selectedAsset.getAsString("name");
+
+            if (downloadUrl == null) {
+                log("No download URL found for asset.");
+                return null;
+            }
+
+            File destination = new File(destinationDir, fileName);
+            destination.getParentFile().mkdirs();
+
+            log("Downloading asset: " + fileName);
+
+            return downloadURL(downloadUrl, destination, githubToken);
+
+        } catch (IOException | ParseException e) {
+            log("Error downloading release assets: " + e.getMessage());
+        }
+
+        return null;
+    }
+
     public String getTheLatestGitLabRelease(String apiURL, String gitlabToken) {
         try {
             URL url = URI.create(apiURL).toURL();
@@ -781,6 +826,38 @@ class UpdaterWorker extends SwingWorker<Void, String> {
     }
 
     public File downloadTheLatestGitLabRelease(String url, File destination, String gitlabToken) {
+        try {
+            HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
+            connection.setRequestMethod("GET");
+
+            InputStream inputStream = connection.getInputStream();
+            String response = new String(inputStream.readAllBytes());
+
+            String zipURL = "";
+            JSONArray releases = (JSONArray) new JSONParser().parse(response);
+            if (!releases.isEmpty()) {
+                JSONObject latestRelease = (JSONObject) releases.getFirst();
+
+                JSONObject assets = (JSONObject) latestRelease.get("assets");
+                JSONArray sources = (JSONArray) assets.get("sources");
+                for (Object sourceObject : sources) {
+                    JSONObject source = (JSONObject) sourceObject;
+
+                    if (source.get("format").equals("zip")) {
+                        zipURL = (String) source.get("url");
+                    }
+                }
+            }
+
+            return downloadURL(zipURL, destination, gitlabToken);
+        } catch (IOException | ParseException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public File downloadTheLatestGitLabReleaseAssets(String url, File destination, String gitlabToken) { // TODO Sorry, not implemented yet
         try {
             HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
             connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
