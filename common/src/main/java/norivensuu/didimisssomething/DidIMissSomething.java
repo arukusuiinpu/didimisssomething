@@ -1,7 +1,10 @@
 package norivensuu.didimisssomething;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
+import net.minidev.json.JSONStyle;
 import net.minidev.json.parser.JSONParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -20,10 +23,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class DidIMissSomething {
 	public static final String MOD_ID = "didimisssomething";
@@ -35,127 +35,114 @@ public class DidIMissSomething {
     public static void initialize() {
         LOGGER.info("Haiiii my little meow meows!");
 
-        didIMissSomething(Config.getApiURL(), Config.getGithubToken(), Config.getGitlabToken());
+        didIMissSomething(Config.getRepositoryApiUrls());
     }
 
-    public static boolean didIMissSomething(String apiURL, String githubToken, String gitlabToken) {
-        if (apiURL == null || !URI.create(apiURL).isAbsolute()) {
-            LOGGER.info("Please place a proper apiURL or mirrorApiURL in {}\\config\\\\{}.txt!", new File(projectPath).getAbsolutePath(), MOD_ID);
+    public static boolean didIMissSomething(Map<String, Object> repositoryApiUrls) {
+        boolean properApis = !repositoryApiUrls.equals(Map.of(
+                "PLACE_YOUR_API_URL_IN_HERE", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
+                "PLACE_YOUR_MIRROR_API_URL_IN_HERE", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE"
+        ));
 
+        if (!properApis) {
+            LOGGER.warn("Please specify your repositoryApiUrls in {}\\config\\\\{}.json!", new File(projectPath).getAbsolutePath(), MOD_ID);
             return false;
         }
 
-        boolean properApi = (Config.usingMirror() && !apiURL.equals("PLACE_YOUR_MIRROR_API_URL_IN_HERE")) || (!Config.usingMirror() && !apiURL.equals("PLACE_YOUR_API_URL_IN_HERE"));
-        if (properApi) {
-            boolean isGitLab = apiURL.contains("gitlab.com");
+        for (var entry : repositoryApiUrls.entrySet())
+        {
+            try {
+                String apiURL = entry.getKey();
+                String token = entry.getValue().toString();
 
-            String latestRelease = isGitLab
-                    ? getTheLatestGitLabRelease(apiURL, gitlabToken)
-                    : getTheLatestRelease(apiURL, githubToken);
+                if (apiURL != null && URI.create(apiURL).isAbsolute()) {
+                    boolean isGitLab = apiURL.contains("gitlab.com");
 
-            File folder = new File(projectPath + "/didimisssomething/");
-            if (!folder.exists()) folder.mkdir();
+                    String latestRelease = isGitLab
+                            ? getTheLatestGitLabRelease(apiURL, token)
+                            : getTheLatestRelease(apiURL, token);
+                    // No other ways to check the latest release for now :(, sorry...
 
-            if (!checkTheLatestRelease(new File(projectPath + "/didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
-                checkModsAdditionalFolder();
-                restartGame();
+                    File folder = new File(projectPath + "/didimisssomething/");
+                    if (!folder.exists()) folder.mkdir();
+
+                    if (!checkTheLatestRelease(new File(projectPath + "/didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
+                        checkModsAdditionalFolder();
+                        restartGame();
+                    }
+
+                    return true; // Just to be sure
+                } else {
+                    LOGGER.warn("Please provide a valid apiURL instead of {} in {}\\config\\\\{}.json!.", apiURL, new File(projectPath).getAbsolutePath(), MOD_ID);
+                }
             }
-        } else {
-            LOGGER.info("Please specify your apiURL or mirrorApiURL in {}\\config\\\\{}.txt!", new File(projectPath).getAbsolutePath(), MOD_ID);
+            catch (Exception e) {
+                e.printStackTrace();
+            }
         }
+
         return false;
     }
 
     public static class Config {
-        public static File getConfig() {
-            File config = new File(projectPath + "/config/" + MOD_ID + ".txt");
+        private static final File CONFIG_FILE = new File(projectPath + "/config/" + MOD_ID + ".json");
+        private static Map<String, Object> configData = new HashMap<>();
 
-            if (!config.getParentFile().exists()) {
-                try {
-                    config.getParentFile().mkdirs();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
+        private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+        static {
+            load();
+        }
+
+        public static void load() {
+            try {
+                if (CONFIG_FILE.exists()) {
+                    String content = FileUtils.readFileToString(CONFIG_FILE, StandardCharsets.UTF_8);
+                    JSONParser parser = new JSONParser(JSONParser.MODE_JSON_SIMPLE);
+
+                    JSONObject json = (JSONObject) parser.parse(content);
+                    configData.putAll(json);
+                } else {
+                    CONFIG_FILE.getParentFile().mkdirs();
+                    save();
                 }
+            } catch (Exception e) {
+                LOGGER.error("Failed to load config, using defaults", e);
+                configData = new JSONObject();
+            }
+        }
+
+        private static void save() {
+            try {
+                String prettyJson = GSON.toJson(configData);
+
+                FileUtils.writeStringToFile(CONFIG_FILE, prettyJson, StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public static <T> T get(String key, T defaultValue) {
+            if (!configData.containsKey(key)) {
+                configData.put(key, defaultValue);
+                save();
+                return defaultValue;
             }
 
-            if (!config.exists()) {
-                try {
-                    config.createNewFile();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
-                }
+            Object value = configData.get(key);
+
+            if (defaultValue instanceof String) {
+                return (T) String.valueOf(value);
             }
 
-            return config;
+            return (T) value;
         }
-        public static File getMirrorConfig() {
-            File config = new File(projectPath + "/config/" + MOD_ID + "-mirror.txt");
 
-            if (!config.getParentFile().exists()) {
-                try {
-                    config.getParentFile().mkdirs();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
-            if (!config.exists()) {
-                try {
-                    LOGGER.info(String.valueOf(config));
-
-                    config.createNewFile();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
-            return config;
-        }
-        public static String getData(File config, String data, String defaultData) {
-
-            if (!config.getParentFile().exists()) {
-                try {
-                    config.getParentFile().mkdirs();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
-            if (config != null) {
-                try {
-                    for (String line : FileUtils.readLines(config)) {
-                        if (line.startsWith(data + ":")) {
-                            return line.substring(data.length() + 1).trim();
-                        }
-                    }
-
-                    Files.write(Paths.get(config.toURI()), (data + ":" + defaultData + "\n").getBytes(), StandardOpenOption.APPEND);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            return null;
-        }
-        public static String getApiURL() {
-            var mirrorApi = getData(getConfig(), "mirrorApiURL", "PLACE_YOUR_MIRROR_API_URL_IN_HERE");
-            var api = getData(getConfig(), "apiURL", "PLACE_YOUR_API_URL_IN_HERE");
-
-            if (usingMirror()) return mirrorApi;
-            else return api;
-        }
-        public static String getGithubToken() {
-            return getData(getConfig(), "githubToken", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE");
-        }
-        public static String getGitlabToken() {
-            return getData(getConfig(), "gitlabToken", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE");
-        }
-        public static boolean usingMirror() {
-            return Objects.equals(getData(getMirrorConfig(), "usingMirror", "false"), "true");
+        public static Map<String, Object> getRepositoryApiUrls() {
+            return get("repositoryApiUrls", Map.of(
+                    "PLACE_YOUR_API_URL_IN_HERE", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
+                    "PLACE_YOUR_MIRROR_API_URL_IN_HERE", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE"
+            ));
         }
     }
 

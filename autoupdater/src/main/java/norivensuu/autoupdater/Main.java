@@ -1,11 +1,16 @@
 package norivensuu.autoupdater;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParser;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
+import net.minidev.json.JSONStyle;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.mozilla.universalchardet.UniversalDetector;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -20,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -278,12 +283,8 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
     private final UpdaterFrame frame;
     private final StateRecorder stateRecorder;
-    
-    private final String apiURL;
-    private final String githubToken;
-    private final String gitlabToken;
-    
-    public final Config config = new Config();
+
+    private final Map<String, Object> repositoryApiUrls;
 
     public UpdaterWorker(UpdaterFrame frame, StateRecorder stateRecorder) {
         this.frame = frame;
@@ -295,63 +296,62 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             stateRecorder.changeState("error");
         }
 
-        this.apiURL = config.getApiURL();
-        this.githubToken = config.getGithubToken();
-        this.gitlabToken = config.getGitlabToken();
+        Config config = new Config();
+        config.load();
+
+        this.repositoryApiUrls = config.getRepositoryApiUrls();
     }
 
     public class Config {
-        public File getConfig(String configFileName) {
-            String mirrorConfigFilePath = new File(System.getProperty("user.dir")).getParentFile().getAbsolutePath() + "\\config\\" + configFileName;
-            File config = new File(mirrorConfigFilePath);
+        private final File CONFIG_FILE = new File(new File(System.getProperty("user.dir")).getParentFile().getAbsolutePath() + "/config/didimisssomething.json");
+        private Map<String, Object> configData = new HashMap<>();
 
-            if (!config.getParentFile().exists()) {
-                config.getParentFile().mkdir();
-            }
+        public void load() {
+            try {
+                if (CONFIG_FILE.exists()) {
+                    String content = FileUtils.readFileToString(CONFIG_FILE, StandardCharsets.UTF_8);
+                    JSONParser parser = new JSONParser(JSONParser.MODE_JSON_SIMPLE);
 
-            if (!config.exists()) {
-                log("Mirror config file not found at " + mirrorConfigFilePath);
-                try {
-                    log("Successfully created the mirror config file!");
-                    config.createNewFile();
-                } catch (IOException e) {
-                    log("Error while trying to create the mirror config: " + e.getMessage());
-                    e.printStackTrace();
-                    return null;
+                    JSONObject json = (JSONObject) parser.parse(content);
+                    configData.putAll(json);
+                } else {
+                    CONFIG_FILE.getParentFile().mkdirs();
+                    save();
                 }
+            } catch (Exception e) {
+                configData = new JSONObject();
+            }
+        }
+
+        private void save() {
+            try {
+                FileUtils.writeStringToFile(CONFIG_FILE, JSONObject.toJSONString(configData, JSONStyle.LT_COMPRESS), StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public <T> T get(String key, T defaultValue) {
+            if (!configData.containsKey(key)) {
+                configData.put(key, defaultValue);
+                save();
+                return defaultValue;
             }
 
-            return config;
-        }
-        public String getData(File config, String data, String defaultData) {
+            Object value = configData.get(key);
 
-            if (config != null) {
-                try {
-                    for (String line : FileUtils.readLines(config)) {
-                        if (line.startsWith(data + ":")) {
-                            return line.substring(data.length() + 1).trim();
-                        }
-                    }
-
-                    Files.write(Paths.get(config.toURI()), (data + ":" + defaultData + "\n").getBytes(), StandardOpenOption.APPEND);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            if (defaultValue instanceof String) {
+                return (T) String.valueOf(value);
             }
-            return null;
+
+            return (T) value;
         }
-        public String getApiURL() {
-            if (usingMirror()) return getData(getConfig("didimisssomething.txt"), "mirrorApiURL", "PLACE_YOUR_MIRROR_API_URL_IN_HERE");
-            else return getData(getConfig("didimisssomething.txt"), "apiURL", "PLACE_YOUR_API_URL_IN_HERE");
-        }
-        public String getGithubToken() {
-            return getData(getConfig("didimisssomething.txt"), "githubToken", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE");
-        }
-        public String getGitlabToken() {
-            return getData(getConfig("didimisssomething.txt"), "gitlabToken", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE");
-        }
-        public boolean usingMirror() {
-            return Objects.equals(getData(getConfig("didimisssomething-mirror.txt"), "usingMirror", "false"), "true");
+
+        public Map<String, Object> getRepositoryApiUrls() {
+            return get("repositoryApiUrls", Map.of(
+                    "PLACE_YOUR_API_URL_IN_HERE", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
+                    "PLACE_YOUR_MIRROR_API_URL_IN_HERE", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE"
+            ));
         }
     }
 
@@ -361,30 +361,69 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         if (logFile.exists()) logFile.delete();
 
         log("Starting update process...");
-        boolean isGitLab = apiURL.contains("gitlab.com");
 
-        // 1. Retrieve the latest release.
-        String latestRelease = isGitLab
-                ? getTheLatestGitLabRelease(apiURL, gitlabToken)
-                : getTheLatestRelease(apiURL, githubToken);
-        log("Latest release: " + latestRelease);
+        File downloadFile = null;
+        String latestRelease = null;
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        var entryList = new ArrayList<>(repositoryApiUrls.entrySet());
 
-        frame.setTitle("Release " + latestRelease);
+        for (int i = 0; i < entryList.size(); i++) {
+            var entry = entryList.get(i);
+            String apiURL = entry.getKey();
+            String token = entry.getValue().toString();
 
-        // 2. Download the release archive.
-        stateRecorder.changeState("download");
-        File downloadFile = new File("downloads/latest-release.zip");
-        downloadFile.getParentFile().mkdirs();
-        log("Downloading release archive...");
-        downloadFile = isGitLab
-                ? downloadTheLatestGitLabRelease(apiURL, new File("downloads/latest-release.zip"), gitlabToken)
-                : downloadTheLatestRelease(apiURL, new File("downloads/latest-release.zip"), githubToken);
+            if (!URI.create(apiURL).isAbsolute()) {
+                continue;
+            }
+
+            boolean isGitLab = apiURL.contains("gitlab.com");
+            boolean isLastEntry = (i == entryList.size() - 1);
+
+            try {
+                latestRelease = isGitLab
+                        ? getTheLatestGitLabRelease(apiURL, token)
+                        : getTheLatestRelease(apiURL, token);
+                log("Latest release: " + latestRelease);
+
+                frame.setTitle("Release " + latestRelease);
+
+                stateRecorder.changeState("download");
+                downloadFile = new File("downloads/latest-release.zip");
+
+                downloadFile.getParentFile().mkdirs();
+                log("Downloading release archive from: " + apiURL);
+
+                File finalDownloadFile = downloadFile;
+                Future<File> future = executor.submit(() -> isGitLab
+                        ? downloadTheLatestGitLabRelease(apiURL, finalDownloadFile, token)
+                        : downloadTheLatestRelease(apiURL, finalDownloadFile, token));
+
+                if (isLastEntry) {
+                    downloadFile = future.get();
+                } else {
+                    downloadFile = future.get(1, TimeUnit.MINUTES);
+                }
+                break;
+
+            } catch (TimeoutException e) {
+                log("Download timed out for " + apiURL + ". Trying next source...");
+            } catch (Exception e) {
+                log("Error downloading from " + apiURL + ": " + e.getMessage());
+            }
+        }
+        executor.shutdown();
+        if (downloadFile == null || latestRelease == null) {
+            log("Something went wrong with your downloadFile or latestRelease string and they were not initialized.");
+            stateRecorder.changeState("error");
+            cancel(true);
+            return null;
+        }
+
         log("Download complete: " + downloadFile.getAbsolutePath());
         frame.updateProgress(30);
 
         frame.setTitle("Release " + latestRelease);
 
-        // 3. Unpack the ZIP archive.
         stateRecorder.changeState("unpack");
         File unpackDir = new File("downloads/unpacked/latest-release/");
         if (unpackDir.exists()) {
@@ -402,7 +441,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         }
         frame.updateProgress(60);
 
-        // 4. Backup current mods.
         File baseDir = new File(System.getProperty("user.dir")).getParentFile();
         File didimisssomethingDir = new File(System.getProperty("user.dir"));
         File modsDir = new File(baseDir, "mods");
@@ -419,15 +457,13 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         }
         frame.updateProgress(70);
 
-        // 5. Delete previously installed mods.
         File referenceFile = new File(didimisssomethingDir, "reference.txt");
         if (referenceFile.exists()) {
             log("Deleting previously installed mods...");
 
-            // Detect encoding using juniversalchardet
             byte[] fileBytes = Files.readAllBytes(referenceFile.toPath());
-            org.mozilla.universalchardet.UniversalDetector detector =
-                    new org.mozilla.universalchardet.UniversalDetector(null);
+            UniversalDetector detector =
+                    new UniversalDetector(null);
             detector.handleData(fileBytes, 0, fileBytes.length);
             detector.dataEnd();
 
@@ -449,14 +485,12 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         }
         frame.updateProgress(80);
 
-        // 6. Restore additional mods.
         File additionalModsDir = new File(baseDir, "mods-additional");
         if (additionalModsDir.exists()) {
             log("Restoring additional mods...");
             FileUtils.copyDirectory(additionalModsDir, modsDir);
         }
 
-        // 7. Populate mods and configs from the unpacked release.
         stateRecorder.changeState("update");
         log("Populating mods and configs from the unpacked release...");
         if (unpackDir.exists() && unpackDir.isDirectory()) {
@@ -489,7 +523,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             log("Unpacked release directory not found.");
         }
 
-        // 8. Save release info.
         File releaseFile = new File(didimisssomethingDir, "release.txt");
         String releaseInfo = "latest-release:" + latestRelease;
         Files.write(releaseFile.toPath(), releaseInfo.getBytes(StandardCharsets.UTF_8),
@@ -695,7 +728,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
     }
 
     public static boolean unpackZip(File file, String outputDir) {
-        try (java.util.zip.ZipFile zipFile = new ZipFile(file)) {
+        try (ZipFile zipFile = new ZipFile(file)) {
             Enumeration<? extends ZipEntry> entries = zipFile.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();

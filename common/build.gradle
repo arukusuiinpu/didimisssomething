@@ -2,11 +2,6 @@ architectury {
     common(rootProject.enabled_platforms.split(","))
 }
 
-dependencies {
-    implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
-    implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
-}
-
 tasks.withType(Jar).configureEach {
     mustRunAfter(':autoupdater:copyJarToResources')
 }
