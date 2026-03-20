@@ -952,8 +952,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             return destination;
         } catch (IOException e) {
             log(String.format("Download failed: %s", e.getMessage()));
-
-            System.exit(0);
         }
         return null;
     }
