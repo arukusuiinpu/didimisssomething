@@ -48,6 +48,6 @@ jobs:
         with:
           tag_name: ${{ steps.tag_version.outputs.tag }}
           name: "Release ${{ steps.tag_version.outputs.tag }}"
-          files: build/libs/*.jar
+          files: didimisssomething/build/libs/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
