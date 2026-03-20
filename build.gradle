@@ -31,7 +31,7 @@ tasks.register('updateVersion') {
     }
 }
 
-def modVersion = "1.0.${file(rootProject.version_filename).text.trim()}+${rootProject.minecraft_version}"
+def modVersion = "1.1.${file(rootProject.version_filename).text.trim()}+${rootProject.minecraft_version}"
 
 architectury {
     minecraft = project.minecraft_version
@@ -75,6 +75,9 @@ subprojects {
             it.mappings("net.fabricmc:yarn:$rootProject.yarn_mappings:v2")
             it.mappings("dev.architectury:yarn-mappings-patch-neoforge:$rootProject.yarn_mappings_patch_neoforge_version")
         }
+
+        implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
+        implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
     }
 
     java {
