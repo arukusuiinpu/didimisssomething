@@ -800,6 +800,10 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                 return null;
             }
 
+            downloadUrl = downloadUrl.replace("%2B", "+");
+            downloadUrl = downloadUrl.replace("%5B", "[");
+            downloadUrl = downloadUrl.replace("%5D", "]");
+
             File destination = new File(destinationDir, fileName);
             destination.getParentFile().mkdirs();
 
@@ -909,7 +913,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                 connection.setRequestProperty("PRIVATE-TOKEN", token);
             }
             else {
-                connection.setRequestProperty("Authorization", "token " + token);
+                connection.setRequestProperty("Authorization", "Bearer " + token);
                 connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
             }
 
@@ -947,7 +951,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             log("Downloaded to: ", destination.getAbsolutePath());
             return destination;
         } catch (IOException e) {
-            log("Download failed: {}", e.getMessage());
+            log(String.format("Download failed: %s", e.getMessage()));
 
             System.exit(0);
         }
