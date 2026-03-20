@@ -489,6 +489,9 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             FileUtils.copyDirectory(additionalModsDir, modsDir);
         }
 
+        StringBuilder releaseInfo = new StringBuilder("latest-release;" + latestRelease);
+        Map<String, List<Object>> ids = new HashMap<>();
+
         stateRecorder.changeState("update");
         log("Populating mods and configs from the unpacked release...");
         if (unpackDir.exists() && unpackDir.isDirectory()) {
@@ -517,6 +520,8 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 assert json != null;
                                 Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
 
+                                String jsonId = json.get("id").toString();
+
                                 File modDownloadFile = null;
                                 String modLatestRelease = null;
                                 ExecutorService modExecutor = Executors.newSingleThreadExecutor();
@@ -524,6 +529,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                                 for (int i = 0; i < modEntryList.size(); i++) {
                                     var entry = modEntryList.get(i);
+
                                     String apiURL = entry.getKey();
                                     String token = entry.getValue().toString();
 
@@ -538,6 +544,8 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                                 ? getTheLatestGitLabRelease(apiURL, token)
                                                 : getTheLatestRelease(apiURL, token);
                                         log(json.get("id") + " latest release: " + modLatestRelease);
+
+                                        ids.put(jsonId, List.of(modLatestRelease, apiURL, token));
 
                                         frame.setTitle("Release " + modLatestRelease);
 
@@ -589,9 +597,12 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             log("Unpacked release directory not found.");
         }
 
+        for (var entry : ids.entrySet()) {
+            releaseInfo.append("\n").append(entry.getKey()).append(";").append(entry.getValue().getFirst()).append(";").append(entry.getValue().get(1)).append(";").append(entry.getValue().get(2));
+        }
+
         File releaseFile = new File(didimisssomethingDir, "release.txt");
-        String releaseInfo = "latest-release:" + latestRelease;
-        Files.write(releaseFile.toPath(), releaseInfo.getBytes(StandardCharsets.UTF_8),
+        Files.write(releaseFile.toPath(), releaseInfo.toString().getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         log("Saved release info to: " + releaseFile.getAbsolutePath());
 

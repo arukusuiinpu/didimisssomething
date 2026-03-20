@@ -59,15 +59,47 @@ public class DidIMissSomething {
                 if (apiURL != null && URI.create(apiURL).isAbsolute()) {
                     boolean isGitLab = apiURL.contains("gitlab.com");
 
-                    String latestRelease = isGitLab
-                            ? getTheLatestGitLabRelease(apiURL, token)
-                            : getTheLatestRelease(apiURL, token);
-                    // No other ways to check the latest release for now :(, sorry...
-
                     File folder = new File(projectPath + "/didimisssomething/");
                     if (!folder.exists()) folder.mkdir();
 
-                    if (!checkTheLatestRelease(new File(projectPath + "/didimisssomething/release.txt"), latestRelease) || !checkModsAdditionalFolder()) {
+                    File releaseFile = new File(projectPath + "/didimisssomething/release.txt");
+                    if (!releaseFile.exists()) releaseFile.createNewFile();
+
+                    List<String> lines = Files.readAllLines(releaseFile.toPath());
+                    boolean allUpToDate = true;
+
+                    for (String line : lines) {
+                        if (line.startsWith("latest-release;")) {
+                            String currentRelease = line.split(";")[1].trim();
+                            String latestRelease = isGitLab
+                                    ? getTheLatestGitLabRelease(apiURL, token)
+                                    : getTheLatestRelease(apiURL, token);
+                            if (!currentRelease.equals(latestRelease)) {
+                                allUpToDate = false;
+                                break;
+                            }
+                        } else if (!line.isBlank() && line.contains(";")) {
+                            String[] parts = line.split(";");
+                            if (parts.length >= 4) {
+                                String modName = parts[0].trim();
+                                String currentVersion = parts[1].trim();
+                                String modApiUrl = parts[2].trim();
+                                String modToken = parts[3].trim();
+
+                                String latestModRelease = modApiUrl.contains("gitlab")
+                                        ? getTheLatestGitLabRelease(modApiUrl, modToken)
+                                        : getTheLatestRelease(modApiUrl, modToken);
+
+                                if (!currentVersion.equals(latestModRelease)) {
+                                    allUpToDate = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (allUpToDate) LOGGER.info("The latest releases are already in the file.");
+
+                    if (!allUpToDate || !checkModsAdditionalFolder()) {
                         checkModsAdditionalFolder();
                         restartGame();
                     }
@@ -242,35 +274,6 @@ public class DidIMissSomething {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-
-    public static boolean checkTheLatestRelease(File file, String latestRelease) {
-        LOGGER.info("Checking the '{}'...", file);
-        try {
-            if (!file.exists()) {
-                file.createNewFile();
-            }
-
-            List<String> lines = Files.readAllLines(file.toPath());
-
-            for (String line : lines) {
-                if (line.startsWith("latest-release:")) {
-                    String currentRelease = line.split(":")[1].trim();
-
-                    if (currentRelease.equals(latestRelease)) {
-                        LOGGER.info("The latest release is already in the file.");
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-            }
-            return false;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
     }
 
     public static String getTheLatestRelease(String apiUrl, String githubToken) {
