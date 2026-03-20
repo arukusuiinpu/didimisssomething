@@ -35,6 +35,7 @@ public class DidIMissSomething {
     public static void initialize() {
         LOGGER.info("Haiiii my little meow meows!");
 
+        Config.get("useModsMetadataToUpdate", false);
         didIMissSomething(Config.getRepositoryApiUrls());
     }
 
