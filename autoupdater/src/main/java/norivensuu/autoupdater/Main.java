@@ -1,8 +1,5 @@
 package norivensuu.autoupdater;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonParser;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONStyle;
@@ -26,6 +23,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -284,6 +282,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
     private final UpdaterFrame frame;
     private final StateRecorder stateRecorder;
 
+    public final Config config = new Config();
     private final Map<String, Object> repositoryApiUrls;
 
     public UpdaterWorker(UpdaterFrame frame, StateRecorder stateRecorder) {
@@ -296,7 +295,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             stateRecorder.changeState("error");
         }
 
-        Config config = new Config();
         config.load();
 
         this.repositoryApiUrls = config.getRepositoryApiUrls();
@@ -507,8 +505,103 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                             absoluteParent = absoluteParent.getParentFile();
                         }
                         File destFile = new File(baseDir, relative.toString().replace(absoluteParent.getName() + "\\", ""));
+
+                        destFile.getParentFile().mkdirs();
+
+                        if (config.get("useModsMetadataToUpdate", false) && sourceFile.getName().endsWith(".jar") && jarContainsMeta(sourceFile)) {
+                            var json = readMetaFromJar(sourceFile);
+
+                            try {
+                                assert json != null;
+                                Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
+
+                                File modDownloadFile = null;
+                                String modLatestRelease = null;
+                                ExecutorService modExecutor = Executors.newSingleThreadExecutor();
+                                var modEntryList = new ArrayList<>(modRepositoryApiUrls.entrySet());
+
+                                for (int i = 0; i < modEntryList.size(); i++) {
+                                    var entry = modEntryList.get(i);
+                                    String apiURL = entry.getKey();
+                                    String token = entry.getValue().toString();
+
+                                    if (!URI.create(apiURL).isAbsolute()) {
+                                        continue;
+                                    }
+
+                                    boolean isGitLab = apiURL.contains("gitlab.com");
+                                    boolean isLastEntry = (i == modEntryList.size() - 1);
+
+                                    try {
+                                        modLatestRelease = isGitLab
+                                                ? getTheLatestGitLabRelease(apiURL, token)
+                                                : getTheLatestRelease(apiURL, token);
+                                        log(json.get("id") + " latest release: " + modLatestRelease);
+
+                                        frame.setTitle("Release " + modLatestRelease);
+
+                                        stateRecorder.changeState("download");
+                                        modDownloadFile = new File(String.format("downloads/%s.zip", json.get("id")));
+
+                                        modDownloadFile.getParentFile().mkdirs();
+                                        log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
+
+                                        File finalDownloadFile = modDownloadFile;
+                                        Future<File> future = modExecutor.submit(() -> isGitLab
+                                                ? downloadTheLatestGitLabRelease(apiURL, finalDownloadFile, token)
+                                                : downloadTheLatestRelease(apiURL, finalDownloadFile, token));
+
+                                        if (isLastEntry) {
+                                            modDownloadFile = future.get();
+                                        } else {
+                                            modDownloadFile = future.get(1, TimeUnit.MINUTES);
+                                        }
+                                        break;
+
+                                    } catch (TimeoutException e) {
+                                        log("Download timed out for " + apiURL + ". Trying next source...");
+                                    } catch (Exception e) {
+                                        log("Error downloading from " + apiURL + ": " + e.getMessage());
+                                    }
+                                }
+                                modExecutor.shutdown();
+
+                                try {
+                                    stateRecorder.changeState("unpack");
+                                    File modUnpackDir = new File(String.format("downloads/unpacked/%s/", json.get("id")));
+                                    if (modUnpackDir.exists()) {
+                                        FileUtils.deleteDirectory(modUnpackDir);
+                                    }
+                                    modUnpackDir.mkdirs();
+                                    log("Unpacking archive...");
+                                    if (unpackZip(modDownloadFile, modUnpackDir.getAbsolutePath())) {
+                                        log("Archive unpacked successfully.");
+                                    } else {
+                                        log("Failed to unpack archive.");
+                                        stateRecorder.changeState("error");
+                                    }
+
+                                    File selectedJar = findMainJar(modUnpackDir);
+
+                                    if (selectedJar == null) {
+                                        log("No valid .jar found in unpacked release for " + json.get("id"));
+                                        return;
+                                    }
+
+                                    log("Selected jar: " + selectedJar.getAbsolutePath());
+
+                                    sourceFile = selectedJar;
+                                }
+                                catch (Exception e) {
+                                    log(e.getMessage());
+                                }
+                            }
+                            catch (ClassCastException | AssertionError e) {
+                                log(e.getMessage());
+                            }
+                        }
+
                         try {
-                            destFile.getParentFile().mkdirs();
                             FileUtils.copyFile(sourceFile, destFile);
 
                             Files.writeString(referenceFile.toPath(),
@@ -538,6 +631,52 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         System.exit(0);
 
         return null;
+    }
+
+    private File findMainJar(File dir) throws IOException {
+        try (Stream<Path> stream = Files.walk(dir.toPath())) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .map(Path::toFile)
+                    .filter(f -> f.getName().endsWith(".jar"))
+                    .filter(f -> !f.getName().endsWith("-sources.jar"))
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
+    private boolean jarContainsMeta(File jarFile) {
+        try (ZipFile zip = new ZipFile(jarFile)) {
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (!entry.isDirectory() && entry.getName().endsWith("didimisssomething.meta.json")) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            log("Error reading jar: " + jarFile.getAbsolutePath());
+        }
+        return false;
+    }
+
+    private JSONObject readMetaFromJar(File jarFile) {
+        JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+
+        try (ZipFile zip = new ZipFile(jarFile)) {
+            ZipEntry entry = zip.getEntry("didimisssomething.meta.json");
+
+            if (entry == null) return null;
+
+            try (InputStream is = zip.getInputStream(entry)) {
+                String json = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                return (JSONObject) parser.parse(json);
+            }
+
+        } catch (IOException | ParseException e) {
+            log("Failed to parse meta in " + jarFile.getAbsolutePath() + ": " + e.getMessage());
+            return null;
+        }
     }
 
     public void log(String... messages) {
