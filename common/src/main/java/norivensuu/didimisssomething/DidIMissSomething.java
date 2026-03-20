@@ -97,6 +97,7 @@ public class DidIMissSomething {
                             }
                         }
                     }
+                    if (!lines.getFirst().startsWith("latest-release;")) allUpToDate = false;
                     if (allUpToDate) LOGGER.info("The latest releases are already in the file.");
 
                     if (!allUpToDate || !checkModsAdditionalFolder()) {
