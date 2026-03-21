@@ -576,6 +576,17 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 modExecutor.shutdown();
 
                                 sourceFile = modDownloadFile;
+
+                                if (sourceFile != null) {
+                                    relative = unpackDir.toPath().relativize(sourceFile.toPath());
+                                    absoluteParent = relative.toFile();
+                                    while (absoluteParent.getParentFile() != null) {
+                                        absoluteParent = absoluteParent.getParentFile();
+                                    }
+                                    destFile = new File(baseDir, relative.toString().replace(absoluteParent.getName() + "\\", ""));
+
+                                    destFile.getParentFile().mkdirs();
+                                }
                             }
                             catch (ClassCastException | AssertionError e) {
                                 log(e.getMessage());
@@ -583,6 +594,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                         }
 
                         try {
+                            assert sourceFile != null;
                             FileUtils.copyFile(sourceFile, destFile);
 
                             Files.writeString(referenceFile.toPath(),
