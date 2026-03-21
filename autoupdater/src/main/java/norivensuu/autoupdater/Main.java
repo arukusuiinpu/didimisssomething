@@ -564,10 +564,11 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                     ids.put(jsonId, List.of(modLatestRelease, apiURL, token));
                                 }
 
+                                modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
                                 if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
                                     log(jsonId + " is up to date. Skipping download.");
 
-                                    sourceFile = path.toFile();
+                                    sourceFile = modDownloadFile;
                                 } else {
                                     log(jsonId + " changed. Downloading new version...");
 
@@ -587,7 +588,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                                         try {
                                             stateRecorder.changeState("download");
-                                            modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
 
                                             modDownloadFile.getParentFile().mkdirs();
                                             log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
