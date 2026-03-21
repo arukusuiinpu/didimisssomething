@@ -697,7 +697,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         try {
             get();
         } catch (InterruptedException | ExecutionException e) {
-            frame.appendLog("Error during update: " + e.getMessage());
+            frame.appendLog("Error during update: " + Arrays.toString(e.getStackTrace()));
             stateRecorder.changeState("error");
         }
     }
@@ -957,7 +957,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             log("Downloaded to: ", destination.getAbsolutePath());
             return destination;
         } catch (IOException e) {
-            log(String.format("Download failed: %s", e.getMessage()));
+            log(String.format("Download failed: %s", Arrays.toString(e.getStackTrace())));
         }
         return null;
     }
