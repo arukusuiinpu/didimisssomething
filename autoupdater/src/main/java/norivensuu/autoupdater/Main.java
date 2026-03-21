@@ -565,8 +565,19 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 }
 
                                 modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
+
+                                File dir = modDownloadFile;
+
+                                File[] jars = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
+
+                                if (jars != null && jars.length > 0) {
+                                    modDownloadFile = jars[0];
+                                } else {
+                                    log("No .jar found in " + dir.getAbsolutePath());
+                                }
+
                                 if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
-                                    log(jsonId + " is up to date. Skipping download.");
+                                    log(jsonId + " is up to date. Skipping download. " + modDownloadFile);
                                 } else {
                                     log(jsonId + " changed. Downloading new version...");
 
@@ -587,6 +598,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                         try {
                                             stateRecorder.changeState("download");
 
+                                            modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
                                             modDownloadFile.getParentFile().mkdirs();
                                             log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
 
@@ -609,15 +621,18 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                         }
                                     }
                                     modExecutor.shutdown();
-
-                                    sourceFile = modDownloadFile;
-
-                                    if (sourceFile != null) {
-                                        destFile = new File(baseDir, "mods/" + sourceFile.getName());
-
-                                        destFile.getParentFile().mkdirs();
-                                    }
                                 }
+
+                                sourceFile = modDownloadFile;
+
+                                if (sourceFile != null) {
+                                    destFile = new File(baseDir, "mods/" + sourceFile.getName());
+
+                                    destFile.getParentFile().mkdirs();
+                                }
+
+                                assert modDownloadFile != null;
+                                modDownloadFile.getParentFile().delete();
                             }
                             catch (ClassCastException | AssertionError e) {
                                 log(e.getMessage());
