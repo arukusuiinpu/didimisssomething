@@ -78,7 +78,7 @@ public class DidIMissSomething {
                                 allUpToDate = false;
                                 break;
                             }
-                        } else if (!line.isBlank() && line.contains(";")) {
+                        } else if (!line.isBlank() && line.contains(";") && Config.get("useModsMetadataToUpdate", false)) {
                             String[] parts = line.split(";");
                             if (parts.length >= 3) {
                                 String modName = parts[0].trim();
