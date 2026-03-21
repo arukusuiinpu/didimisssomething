@@ -567,8 +567,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
                                 if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
                                     log(jsonId + " is up to date. Skipping download.");
-
-                                    sourceFile = modDownloadFile;
                                 } else {
                                     log(jsonId + " changed. Downloading new version...");
 
