@@ -281,7 +281,9 @@ public class DidIMissSomething {
         try {
             HttpURLConnection connection = (HttpURLConnection) URI.create(apiUrl).toURL().openConnection();
             connection.setRequestMethod("GET");
-            connection.setRequestProperty("Authorization", "token " + githubToken);
+            if (!githubToken.isEmpty()) {
+                connection.setRequestProperty("Authorization", "token " + githubToken);
+            }
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
 
             InputStream inputStream = connection.getInputStream();
@@ -301,7 +303,9 @@ public class DidIMissSomething {
         try {
             URL url = URI.create(apiURL).toURL();
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
+            if (!gitlabToken.isEmpty()) {
+                connection.setRequestProperty("PRIVATE-TOKEN", gitlabToken);
+            }
             connection.setRequestMethod("GET");
 
             InputStream responseStream = connection.getInputStream();
