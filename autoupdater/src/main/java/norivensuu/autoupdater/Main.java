@@ -358,7 +358,27 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         File logFile = new File(System.getProperty("user.dir"), "log.txt");
         if (logFile.exists()) logFile.delete();
 
+        File releaseFile = new File(System.getProperty("user.dir"), "/release.txt");
+        if (!releaseFile.exists()) releaseFile.createNewFile();
+
+        Map<String, String> installedVersions = new HashMap<>();
+
+        List<String> releasesLines = Files.readAllLines(releaseFile.toPath());
+
+        for (String line : releasesLines) {
+            if (line.startsWith("latest-release;")) {
+                installedVersions.put("latest-release", line.split(";")[1].trim());
+            } else if (!line.isBlank() && line.contains(";")) {
+                String[] parts = line.split(";");
+                if (parts.length >= 2) {
+                    installedVersions.put(parts[0].trim(), parts[1].trim());
+                }
+            }
+        }
+
         log("Starting update process...");
+
+        String installedMain = installedVersions.get("latest-release");
 
         File downloadFile = null;
         String latestRelease = null;
@@ -385,23 +405,25 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                 frame.setTitle("Release " + latestRelease);
 
-                stateRecorder.changeState("download");
-                downloadFile = new File("downloads/latest-release.zip");
+                if (installedMain != null && !installedMain.equals(latestRelease)) {
+                    stateRecorder.changeState("download");
+                    downloadFile = new File("downloads/latest-release.zip");
 
-                downloadFile.getParentFile().mkdirs();
-                log("Downloading release archive from: " + apiURL);
+                    downloadFile.getParentFile().mkdirs();
+                    log("Downloading release archive from: " + apiURL);
 
-                File finalDownloadFile = downloadFile;
-                Future<File> future = executor.submit(() -> isGitLab
-                        ? downloadTheLatestGitLabRelease(apiURL, finalDownloadFile, token)
-                        : downloadTheLatestRelease(apiURL, finalDownloadFile, token));
+                    File finalDownloadFile = downloadFile;
+                    Future<File> future = executor.submit(() -> isGitLab
+                            ? downloadTheLatestGitLabRelease(apiURL, finalDownloadFile, token)
+                            : downloadTheLatestRelease(apiURL, finalDownloadFile, token));
 
-                if (isLastEntry) {
-                    downloadFile = future.get();
-                } else {
-                    downloadFile = future.get(1, TimeUnit.MINUTES);
+                    if (isLastEntry) {
+                        downloadFile = future.get();
+                    } else {
+                        downloadFile = future.get(1, TimeUnit.MINUTES);
+                    }
+                    break;
                 }
-                break;
 
             } catch (TimeoutException e) {
                 log("Download timed out for " + apiURL + ". Trying next source...");
@@ -410,34 +432,36 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             }
         }
         executor.shutdown();
-        if (downloadFile == null || latestRelease == null) {
-            log("Something went wrong with your downloadFile or latestRelease string and they were not initialized.");
-            stateRecorder.changeState("error");
-            cancel(true);
-            return null;
-        }
-
-        log("Download complete: " + downloadFile.getAbsolutePath());
-        frame.updateProgress(30);
-
-        frame.setTitle("Release " + latestRelease);
-
-        stateRecorder.changeState("unpack");
         File unpackDir = new File("downloads/unpacked/latest-release/");
-        if (unpackDir.exists()) {
-            FileUtils.deleteDirectory(unpackDir);
+        if (installedMain != null && !installedMain.equals(latestRelease)) {
+            if (downloadFile == null || latestRelease == null) {
+                log("Something went wrong with your downloadFile or latestRelease string and they were not initialized.");
+                stateRecorder.changeState("error");
+                cancel(true);
+                return null;
+            }
+
+            log("Download complete: " + downloadFile.getAbsolutePath());
+            frame.updateProgress(30);
+
+            frame.setTitle("Release " + latestRelease);
+
+            stateRecorder.changeState("unpack");
+            if (unpackDir.exists()) {
+                FileUtils.deleteDirectory(unpackDir);
+            }
+            unpackDir.mkdirs();
+            log("Unpacking archive...");
+            if (unpackZip(downloadFile, unpackDir.getAbsolutePath())) {
+                log("Archive unpacked successfully.");
+            } else {
+                log("Failed to unpack archive.");
+                stateRecorder.changeState("error");
+                cancel(true);
+                return null;
+            }
+            frame.updateProgress(60);
         }
-        unpackDir.mkdirs();
-        log("Unpacking archive...");
-        if (unpackZip(downloadFile, unpackDir.getAbsolutePath())) {
-            log("Archive unpacked successfully.");
-        } else {
-            log("Failed to unpack archive.");
-            stateRecorder.changeState("error");
-            cancel(true);
-            return null;
-        }
-        frame.updateProgress(60);
 
         File baseDir = new File(System.getProperty("user.dir")).getParentFile();
         File didimisssomethingDir = new File(System.getProperty("user.dir"));
@@ -521,71 +545,80 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
 
                                 String jsonId = json.get("id").toString();
+                                String installedVersion = installedVersions.get(jsonId);
 
                                 File modDownloadFile = null;
                                 String modLatestRelease = null;
-                                ExecutorService modExecutor = Executors.newSingleThreadExecutor();
                                 var modEntryList = new ArrayList<>(modRepositoryApiUrls.entrySet());
 
-                                for (int i = 0; i < modEntryList.size(); i++) {
-                                    var entry = modEntryList.get(i);
-
+                                for (Map.Entry<String, Object> entry : modEntryList) {
                                     String apiURL = entry.getKey();
                                     String token = entry.getValue().toString();
-
-                                    if (!URI.create(apiURL).isAbsolute()) {
-                                        continue;
-                                    }
                                     boolean isGitLab = apiURL.contains("gitlab.com");
-                                    boolean isLastEntry = (i == modEntryList.size() - 1);
 
-                                    try {
-                                        modLatestRelease = isGitLab
-                                                ? getTheLatestGitLabRelease(apiURL, token)
-                                                : getTheLatestRelease(apiURL, token);
-                                        log(json.get("id") + " latest release: " + modLatestRelease);
+                                    modLatestRelease = isGitLab
+                                            ? getTheLatestGitLabRelease(apiURL, token)
+                                            : getTheLatestRelease(apiURL, token);
+                                    log(json.get("id") + " latest release: " + modLatestRelease);
 
-                                        ids.put(jsonId, List.of(modLatestRelease, apiURL, token));
-
-                                        frame.setTitle("Release " + modLatestRelease);
-
-                                        stateRecorder.changeState("download");
-                                        modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
-
-                                        modDownloadFile.getParentFile().mkdirs();
-                                        log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
-
-                                        File finalDownloadFile = modDownloadFile;
-                                        Future<File> future = modExecutor.submit(() -> isGitLab
-                                                ? downloadTheLatestGitLabReleaseAssets(apiURL, finalDownloadFile, token)
-                                                : downloadTheLatestReleaseAssets(apiURL, finalDownloadFile, token));
-
-                                        if (isLastEntry) {
-                                            modDownloadFile = future.get();
-                                        } else {
-                                            modDownloadFile = future.get(1, TimeUnit.MINUTES);
-                                        }
-                                        break;
-
-                                    } catch (TimeoutException e) {
-                                        log("Download timed out for " + apiURL + ". Trying next source...");
-                                    } catch (Exception e) {
-                                        log("Error downloading from " + apiURL + ": " + e.getMessage());
-                                    }
+                                    ids.put(jsonId, List.of(modLatestRelease, apiURL, token));
                                 }
-                                modExecutor.shutdown();
 
-                                sourceFile = modDownloadFile;
+                                if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
+                                    log(jsonId + " is up to date. Skipping download.");
 
-                                if (sourceFile != null) {
-                                    relative = unpackDir.toPath().relativize(sourceFile.toPath());
-                                    absoluteParent = relative.toFile();
-                                    while (absoluteParent.getParentFile() != null) {
-                                        absoluteParent = absoluteParent.getParentFile();
+                                    sourceFile = path.toFile();
+                                } else {
+                                    log(jsonId + " changed. Downloading new version...");
+
+                                    ExecutorService modExecutor = Executors.newSingleThreadExecutor();
+
+                                    for (int i = 0; i < modEntryList.size(); i++) {
+                                        var entry = modEntryList.get(i);
+
+                                        String apiURL = entry.getKey();
+                                        String token = entry.getValue().toString();
+
+                                        if (!URI.create(apiURL).isAbsolute()) {
+                                            continue;
+                                        }
+                                        boolean isGitLab = apiURL.contains("gitlab.com");
+                                        boolean isLastEntry = (i == modEntryList.size() - 1);
+
+                                        try {
+                                            stateRecorder.changeState("download");
+                                            modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
+
+                                            modDownloadFile.getParentFile().mkdirs();
+                                            log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
+
+                                            File finalDownloadFile = modDownloadFile;
+                                            Future<File> future = modExecutor.submit(() -> isGitLab
+                                                    ? downloadTheLatestGitLabReleaseAssets(apiURL, finalDownloadFile, token)
+                                                    : downloadTheLatestReleaseAssets(apiURL, finalDownloadFile, token));
+
+                                            if (isLastEntry) {
+                                                modDownloadFile = future.get();
+                                            } else {
+                                                modDownloadFile = future.get(1, TimeUnit.MINUTES);
+                                            }
+                                            break;
+
+                                        } catch (TimeoutException e) {
+                                            log("Download timed out for " + apiURL + ". Trying next source...");
+                                        } catch (Exception e) {
+                                            log("Error downloading from " + apiURL + ": " + e.getMessage());
+                                        }
                                     }
-                                    destFile = new File(baseDir, relative.toString().replace(absoluteParent.getName() + "\\", ""));
+                                    modExecutor.shutdown();
 
-                                    destFile.getParentFile().mkdirs();
+                                    sourceFile = modDownloadFile;
+
+                                    if (sourceFile != null) {
+                                        destFile = new File(baseDir, "mods/" + sourceFile.getName());
+
+                                        destFile.getParentFile().mkdirs();
+                                    }
                                 }
                             }
                             catch (ClassCastException | AssertionError e) {
@@ -613,7 +646,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             releaseInfo.append("\n").append(entry.getKey()).append(";").append(entry.getValue().getFirst()).append(";").append(entry.getValue().get(1)).append(";").append(entry.getValue().get(2));
         }
 
-        File releaseFile = new File(didimisssomethingDir, "release.txt");
         Files.write(releaseFile.toPath(), releaseInfo.toString().getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         log("Saved release info to: " + releaseFile.getAbsolutePath());
