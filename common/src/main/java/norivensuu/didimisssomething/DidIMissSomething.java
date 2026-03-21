@@ -80,11 +80,12 @@ public class DidIMissSomething {
                             }
                         } else if (!line.isBlank() && line.contains(";")) {
                             String[] parts = line.split(";");
-                            if (parts.length >= 4) {
+                            if (parts.length >= 3) {
                                 String modName = parts[0].trim();
                                 String currentVersion = parts[1].trim();
                                 String modApiUrl = parts[2].trim();
-                                String modToken = parts[3].trim();
+                                String modToken = "";
+                                if (parts.length >= 4) modToken = parts[3].trim();
 
                                 String latestModRelease = modApiUrl.contains("gitlab")
                                         ? getTheLatestGitLabRelease(modApiUrl, modToken)
