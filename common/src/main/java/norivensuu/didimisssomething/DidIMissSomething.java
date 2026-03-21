@@ -91,6 +91,8 @@ public class DidIMissSomething {
                                         ? getTheLatestGitLabRelease(modApiUrl, modToken)
                                         : getTheLatestRelease(modApiUrl, modToken);
 
+                                LOGGER.info("{} {} vs {}", modName, latestModRelease, currentVersion);
+
                                 if (!currentVersion.equals(latestModRelease)) {
                                     allUpToDate = false;
                                     break;
