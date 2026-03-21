@@ -782,6 +782,8 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                 if (name == null) continue;
 
+                log("Found asset: " + name);
+
                 if (name.endsWith(".jar") && !name.endsWith("-sources.jar")) {
                     selectedAsset = asset;
                     break;
@@ -806,6 +808,10 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
             File destination = new File(destinationDir, fileName);
             destination.getParentFile().mkdirs();
+
+            if (!destinationDir.exists()) {
+                destinationDir.mkdirs();
+            }
 
             log("Downloading asset: " + fileName);
 
