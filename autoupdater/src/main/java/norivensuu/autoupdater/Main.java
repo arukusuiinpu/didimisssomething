@@ -12,7 +12,10 @@ import org.mozilla.universalchardet.UniversalDetector;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.plaf.basic.BasicProgressBarUI;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -131,7 +134,10 @@ class UpdaterFrame extends JFrame {
     private final JProgressBar progressBar;
     private final JLabel gifDisplayLabel;
     private final JLabel headerLabel;
+    private final JLabel subHeaderLabel;
+    private final JLabel statusPill;
     private final StateRecorder stateRecorder;
+    private Point dragOffset;
 
     // Theme Manager for cycling themes.
     private final ThemeManager themeManager;
@@ -144,77 +150,113 @@ class UpdaterFrame extends JFrame {
         setUndecorated(true);
 
         setTitle("Mod Updater");
-        setSize(700, 550);
+        setSize(760, 560);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+        getRootPane().setBorder(BorderFactory.createLineBorder(new Color(55, 69, 86), 1));
 
-        // Create a content pane with padding.
-        JPanel contentPane = new JPanel(new BorderLayout(10, 10));
-        contentPane.setBorder(new EmptyBorder(10, 10, 10, 10));
+        JPanel contentPane = new JPanel(new BorderLayout(18, 18));
+        contentPane.setBorder(new EmptyBorder(18, 20, 20, 20));
         setContentPane(contentPane);
 
-        // Build the full path to the config file based on the parent directory.
-        String configDirectory = new File(System.getProperty("user.dir")).getParentFile().getAbsolutePath() + "\\config\\";
+        String configDirectory = new File(new File(System.getProperty("user.dir")).getParentFile(), "config").getAbsolutePath() + File.separator;
         String configFilePath = configDirectory + "didimisssomething-themes.json";
         themeManager = new ThemeManager(configFilePath);
 
-        // Top: header label with a controls panel.
-        JPanel topPanel = new JPanel(new BorderLayout());
-        headerLabel = new JLabel("<html><h1>Mod Updater</h1></html>");
-        headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        topPanel.add(headerLabel, BorderLayout.CENTER);
+        JPanel topPanel = new JPanel(new BorderLayout(14, 0));
+        topPanel.setOpaque(false);
+        installWindowDrag(topPanel);
 
-        // Create the theme toggle button.
+        JPanel titlePanel = new JPanel(new GridLayout(2, 1, 0, 2));
+        titlePanel.setOpaque(false);
+        headerLabel = new JLabel("Mod Updater");
+        headerLabel.setFont(new Font("Inter", Font.BOLD, 30));
+        subHeaderLabel = new JLabel("Preparing your Minecraft client");
+        subHeaderLabel.setFont(new Font("Inter", Font.PLAIN, 13));
+        titlePanel.add(headerLabel);
+        titlePanel.add(subHeaderLabel);
+        topPanel.add(titlePanel, BorderLayout.CENTER);
+
+        JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        controlsPanel.setOpaque(false);
+
         themeToggleButton = new JButton();
+        themeToggleButton.setPreferredSize(new Dimension(38, 38));
+        themeToggleButton.setBorder(new EmptyBorder(8, 8, 8, 8));
+        themeToggleButton.setToolTipText("Switch theme");
         updateThemeToggleButtonIcon();
         themeToggleButton.setFocusPainted(false);
+        themeToggleButton.setContentAreaFilled(false);
         themeToggleButton.addActionListener(e -> {
-            // Cycle to the next theme.
             themeManager.toggleTheme(new File(configFilePath));
-            // Reapply the theme to every relevant component.
             applyThemeToEverything();
-            // Update the button icon to show the icon of the upcoming theme.
             updateThemeToggleButtonIcon();
         });
-        topPanel.add(themeToggleButton, BorderLayout.WEST);
+        controlsPanel.add(themeToggleButton);
 
-        // Create the theme toggle button.
-        exitButton = new JButton("Exit");
+        exitButton = new JButton("X");
+        exitButton.setPreferredSize(new Dimension(38, 38));
+        exitButton.setFont(new Font("Inter", Font.BOLD, 14));
+        exitButton.setToolTipText("Close updater");
+        exitButton.setContentAreaFilled(false);
+        exitButton.setBorder(new EmptyBorder(8, 8, 8, 8));
         exitButton.setFocusPainted(false);
-        exitButton.addActionListener(e -> {
-            System.exit(0);
-        });
-        topPanel.add(exitButton, BorderLayout.EAST);
+        exitButton.addActionListener(e -> System.exit(0));
+        controlsPanel.add(exitButton);
+
+        topPanel.add(controlsPanel, BorderLayout.EAST);
 
         contentPane.add(topPanel, BorderLayout.NORTH);
 
-        // Center: panel with animated GIF and log.
-        JPanel centerPanel = new JPanel(new BorderLayout(10, 10));
+        JPanel centerPanel = new JPanel(new BorderLayout(18, 0));
+        centerPanel.setOpaque(false);
+
+        RoundedPanel animationPanel = new RoundedPanel(18);
+        animationPanel.setLayout(new BorderLayout(0, 12));
+        animationPanel.setBorder(new EmptyBorder(18, 18, 18, 18));
         gifDisplayLabel = new JLabel(new ImageIcon(getClass().getResource("/idle.gif")));
         gifDisplayLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        gifDisplayLabel.setPreferredSize(new Dimension(300, 200));
-        centerPanel.add(gifDisplayLabel, BorderLayout.NORTH);
+        gifDisplayLabel.setPreferredSize(new Dimension(310, 310));
+        animationPanel.add(gifDisplayLabel, BorderLayout.CENTER);
+
+        statusPill = new JLabel("IDLE", SwingConstants.CENTER);
+        statusPill.setFont(new Font("Inter", Font.BOLD, 12));
+        statusPill.setBorder(new EmptyBorder(8, 14, 8, 14));
+        animationPanel.add(statusPill, BorderLayout.SOUTH);
+        centerPanel.add(animationPanel, BorderLayout.WEST);
+
+        RoundedPanel logPanel = new RoundedPanel(18);
+        logPanel.setLayout(new BorderLayout(0, 12));
+        logPanel.setBorder(new EmptyBorder(16, 16, 16, 16));
+
+        JLabel logTitle = new JLabel("Update Log");
+        logTitle.setFont(new Font("Inter", Font.BOLD, 16));
+        logPanel.add(logTitle, BorderLayout.NORTH);
+
         logArea = new JTextArea();
         logArea.setEditable(false);
-        logArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        logArea.setLineWrap(true);
+        logArea.setWrapStyleWord(true);
+        logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        logArea.setBorder(new EmptyBorder(10, 10, 10, 10));
         JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setPreferredSize(new Dimension(680, 200));
-        centerPanel.add(scrollPane, BorderLayout.CENTER);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setPreferredSize(new Dimension(360, 310));
+        logPanel.add(scrollPane, BorderLayout.CENTER);
+        centerPanel.add(logPanel, BorderLayout.CENTER);
         contentPane.add(centerPanel, BorderLayout.CENTER);
 
-        // Bottom: progress bar.
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
-        progressBar.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        progressBar.setPreferredSize(new Dimension(100, 18));
+        progressBar.setBorder(BorderFactory.createEmptyBorder());
+        progressBar.setFont(new Font("Inter", Font.BOLD, 11));
+        progressBar.setUI(new RoundedProgressBarUI());
         contentPane.add(progressBar, BorderLayout.SOUTH);
 
-        // Create and register the state recorder.
         stateRecorder = new StateRecorder(this);
-
-        // Apply the initial theme to everything.
         applyThemeToEverything();
 
-        // Start the background updater worker.
         UpdaterWorker worker = new UpdaterWorker(this, stateRecorder);
         worker.execute();
     }
@@ -227,26 +269,50 @@ class UpdaterFrame extends JFrame {
         themeToggleButton.setIcon(new ImageIcon(getClass().getResource(iconPath)));
     }
 
-    /**
-     * Applies the theme to all parts of the window, including the frame and its content.
-     */
     private void applyThemeToEverything() {
-        // Apply the theme to the content pane and its child components.
         themeManager.applyTheme(this.getContentPane());
-        // Also, apply the theme to this frame itself and its root pane.
         themeManager.applyTheme(this);
         themeManager.applyTheme(getRootPane());
-        themeManager.applyTheme(this.getJMenuBar());
 
-        // Update the progress bar colors explicitly
-        progressBar.setBackground(themeManager.getButtonBackgroundColor());
-        progressBar.setForeground(themeManager.getButtonForegroundColor());
-        logArea.setBackground(themeManager.getButtonBackgroundColor());
-        logArea.setForeground(themeManager.getButtonForegroundColor());
+        Color background = themeManager.getBackgroundColor();
+        Color surface = themeManager.getSurfaceColor();
+        Color surfaceAlt = themeManager.getSurfaceAltColor();
+        Color foreground = themeManager.getForegroundColor();
+        Color muted = themeManager.getMutedForegroundColor();
+        Color accent = themeManager.getAccentColor();
+
+        getContentPane().setBackground(background);
+        headerLabel.setForeground(foreground);
+        subHeaderLabel.setForeground(muted);
+        statusPill.setForeground(background);
+        statusPill.setBackground(accent);
+        statusPill.setOpaque(true);
+
+        logArea.setBackground(surfaceAlt);
+        logArea.setForeground(foreground);
+        logArea.setCaretColor(accent);
+        progressBar.setBackground(surfaceAlt);
+        progressBar.setForeground(accent);
+
+        themeToggleButton.setBackground(surface);
+        themeToggleButton.setForeground(foreground);
+        exitButton.setBackground(surface);
+        exitButton.setForeground(themeManager.getDangerColor());
+
+        repaint();
     }
 
     public void updateHeader(String text) {
-        SwingUtilities.invokeLater(() -> headerLabel.setText(text));
+        SwingUtilities.invokeLater(() -> {
+            String cleanText = text
+                    .replace("<html>", "")
+                    .replace("</html>", "")
+                    .replace("<h1>", "")
+                    .replace("</h1>", "");
+            headerLabel.setText(cleanText);
+            statusPill.setText(cleanText.toUpperCase(Locale.ROOT));
+            subHeaderLabel.setText(getStateSubtitle(cleanText));
+        });
     }
 
     public void updateGif(String resourcePath) {
@@ -269,6 +335,80 @@ class UpdaterFrame extends JFrame {
 
     public void setProgressIndeterminate(boolean indeterminate) {
         SwingUtilities.invokeLater(() -> progressBar.setIndeterminate(indeterminate));
+    }
+
+    private String getStateSubtitle(String title) {
+        return switch (title) {
+            case "Downloading Release..." -> "Fetching the newest modpack package";
+            case "Unpacking Archive..." -> "Opening the archive and sorting files";
+            case "Updating Mods..." -> "Moving mods and configs into place";
+            case "Update Complete!" -> "Ready for launch, restart Minecraft";
+            case "Error Occurred!" -> "Something failed, check the log";
+            default -> "Preparing your Minecraft client";
+        };
+    }
+
+    private void installWindowDrag(Component component) {
+        MouseAdapter adapter = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                dragOffset = e.getPoint();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                Point screenPoint = e.getLocationOnScreen();
+                setLocation(screenPoint.x - dragOffset.x, screenPoint.y - dragOffset.y);
+            }
+        };
+        component.addMouseListener(adapter);
+        component.addMouseMotionListener(adapter);
+    }
+}
+
+class RoundedPanel extends JPanel {
+    private final int radius;
+
+    public RoundedPanel(int radius) {
+        this.radius = radius;
+        setOpaque(false);
+    }
+
+    @Override
+    protected void paintComponent(Graphics graphics) {
+        Graphics2D g = (Graphics2D) graphics.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(getBackground());
+        g.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+        g.dispose();
+        super.paintComponent(graphics);
+    }
+}
+
+class RoundedProgressBarUI extends BasicProgressBarUI {
+    @Override
+    protected void paintDeterminate(Graphics graphics, JComponent component) {
+        Insets insets = progressBar.getInsets();
+        int width = progressBar.getWidth() - insets.left - insets.right;
+        int height = progressBar.getHeight() - insets.top - insets.bottom;
+        int amountFull = getAmountFull(insets, width, height);
+
+        Graphics2D g = (Graphics2D) graphics.create();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(progressBar.getBackground());
+        g.fillRoundRect(insets.left, insets.top, width, height, height, height);
+        g.setColor(progressBar.getForeground());
+        g.fillRoundRect(insets.left, insets.top, amountFull, height, height, height);
+        g.dispose();
+
+        if (progressBar.isStringPainted()) {
+            paintString(graphics, insets.left, insets.top, width, height, amountFull, insets);
+        }
+    }
+
+    @Override
+    protected void paintIndeterminate(Graphics graphics, JComponent component) {
+        paintDeterminate(graphics, component);
     }
 }
 
@@ -1045,4 +1185,3 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         }
     }
 }
-

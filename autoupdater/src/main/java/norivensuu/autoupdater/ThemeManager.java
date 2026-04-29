@@ -60,17 +60,27 @@ public class ThemeManager {
         JSONObject defaultThemes = new JSONObject();
 
         JSONObject light = new JSONObject();
-        light.put("background", "#ffffff");
-        light.put("foreground", "#000000");
-        light.put("buttonBackground", "#e0e0e0");
-        light.put("buttonForeground", "#000000");
+        light.put("background", "#f3f6f8");
+        light.put("foreground", "#17202a");
+        light.put("mutedForeground", "#637083");
+        light.put("surface", "#ffffff");
+        light.put("surfaceAlt", "#e8eef3");
+        light.put("accent", "#18a999");
+        light.put("danger", "#d84c5f");
+        light.put("buttonBackground", "#ffffff");
+        light.put("buttonForeground", "#17202a");
         light.put("toggleIcon", "/icon_dark.png");
 
         JSONObject dark = new JSONObject();
-        dark.put("background", "#2b2b2b");
-        dark.put("foreground", "#f5f5f5");
-        dark.put("buttonBackground", "#3c3f41");
-        dark.put("buttonForeground", "#f5f5f5");
+        dark.put("background", "#111820");
+        dark.put("foreground", "#f4f7fb");
+        dark.put("mutedForeground", "#aab7c7");
+        dark.put("surface", "#192330");
+        dark.put("surfaceAlt", "#0c1219");
+        dark.put("accent", "#4fd1c5");
+        dark.put("danger", "#ff6b81");
+        dark.put("buttonBackground", "#192330");
+        dark.put("buttonForeground", "#f4f7fb");
         dark.put("toggleIcon", "/icon_light.png");
 
         // Save the themes and set a default last theme.
@@ -102,18 +112,28 @@ public class ThemeManager {
             themesJSON = new JSONObject();
 
             JSONObject light = new JSONObject();
-            light.put("background", "#ffffff");
-            light.put("foreground", "#000000");
-            light.put("buttonBackground", "#e0e0e0");
-            light.put("buttonForeground", "#000000");
+            light.put("background", "#f3f6f8");
+            light.put("foreground", "#17202a");
+            light.put("mutedForeground", "#637083");
+            light.put("surface", "#ffffff");
+            light.put("surfaceAlt", "#e8eef3");
+            light.put("accent", "#18a999");
+            light.put("danger", "#d84c5f");
+            light.put("buttonBackground", "#ffffff");
+            light.put("buttonForeground", "#17202a");
             light.put("toggleIcon", "/icon_dark.png");
             themesJSON.put("light", light);
 
             JSONObject dark = new JSONObject();
-            dark.put("background", "#2b2b2b");
-            dark.put("foreground", "#f5f5f5");
-            dark.put("buttonBackground", "#3c3f41");
-            dark.put("buttonForeground", "#f5f5f5");
+            dark.put("background", "#111820");
+            dark.put("foreground", "#f4f7fb");
+            dark.put("mutedForeground", "#aab7c7");
+            dark.put("surface", "#192330");
+            dark.put("surfaceAlt", "#0c1219");
+            dark.put("accent", "#4fd1c5");
+            dark.put("danger", "#ff6b81");
+            dark.put("buttonBackground", "#192330");
+            dark.put("buttonForeground", "#f4f7fb");
             dark.put("toggleIcon", "/icon_light.png");
             themesJSON.put("dark", dark);
             themesJSON.put("lastTheme", "dark");
@@ -161,6 +181,26 @@ public class ThemeManager {
         return hexToColor(getColorValue("buttonForeground"));
     }
 
+    public Color getMutedForegroundColor() {
+        return hexToColor(getColorValue("mutedForeground", isDarkTheme() ? "#aab7c7" : "#637083"));
+    }
+
+    public Color getSurfaceColor() {
+        return hexToColor(getColorValue("surface", isDarkTheme() ? "#192330" : "#ffffff"));
+    }
+
+    public Color getSurfaceAltColor() {
+        return hexToColor(getColorValue("surfaceAlt", isDarkTheme() ? "#0c1219" : "#e8eef3"));
+    }
+
+    public Color getAccentColor() {
+        return hexToColor(getColorValue("accent", isDarkTheme() ? "#4fd1c5" : "#18a999"));
+    }
+
+    public Color getDangerColor() {
+        return hexToColor(getColorValue("danger", isDarkTheme() ? "#ff6b81" : "#d84c5f"));
+    }
+
     /**
      * Returns the icon path for the next theme in the cycle.
      * This is used for the toggle button so that it indicates which theme will appear next.
@@ -173,9 +213,18 @@ public class ThemeManager {
     }
 
     private String getColorValue(String key) {
+        return getColorValue(key, "#ffffff");
+    }
+
+    private String getColorValue(String key, String fallback) {
         String themeKey = getCurrentThemeKey();
         JSONObject theme = (JSONObject) themesJSON.get(themeKey);
-        return (String) theme.get(key);
+        Object value = theme.get(key);
+        return value == null ? fallback : (String) value;
+    }
+
+    private boolean isDarkTheme() {
+        return "dark".equals(getCurrentThemeKey());
     }
 
     private Color hexToColor(String hex) {
@@ -188,7 +237,10 @@ public class ThemeManager {
      * @param comp The component to update.
      */
     public void applyTheme(Component comp) {
-        if (comp instanceof JPanel || comp instanceof JFrame) {
+        if (comp instanceof RoundedPanel) {
+            comp.setBackground(getSurfaceColor());
+            comp.setForeground(getForegroundColor());
+        } else if (comp instanceof JPanel || comp instanceof JFrame) {
             comp.setBackground(getBackgroundColor());
             comp.setForeground(getForegroundColor());
         } else if (comp instanceof JScrollPane) {
