@@ -20,6 +20,7 @@ public class ThemeManager {
     private JSONObject themesJSON;
     private List<String> themeKeys;
     private int currentIndex; // Index of the currently active theme
+    private File configFile;
 
     /**
      * Loads the theme configuration from a JSON file.
@@ -27,12 +28,12 @@ public class ThemeManager {
      * @param configFilePath full path to the themes.json file.
      */
     public ThemeManager(String configFilePath) {
-        File configFile = new File(configFilePath);
+        configFile = new File(configFilePath);
         if (!configFile.exists()) {
             createDefaultThemesConfig(configFile);
         }
         loadThemes(configFile);
-        // Build the list of theme keys (excluding non-theme keys like "lastTheme")
+
         themeKeys = new ArrayList<>();
         for (Object keyObj : themesJSON.keySet()) {
             String key = (String) keyObj;
@@ -40,7 +41,7 @@ public class ThemeManager {
                 themeKeys.add(key);
             }
         }
-        // Determine the last theme from the config; if none, default to the first theme.
+
         String lastTheme = (String) themesJSON.get("lastTheme");
         if (lastTheme != null && themeKeys.contains(lastTheme)) {
             currentIndex = themeKeys.indexOf(lastTheme);
@@ -55,7 +56,6 @@ public class ThemeManager {
      * @param file The configuration file to create.
      */
     private void createDefaultThemesConfig(File file) {
-        // Ensure parent directory exists.
         file.getParentFile().mkdirs();
         JSONObject defaultThemes = new JSONObject();
 
@@ -83,7 +83,6 @@ public class ThemeManager {
         dark.put("buttonForeground", "#f4f7fb");
         dark.put("toggleIcon", "/icon_light.png");
 
-        // Save the themes and set a default last theme.
         defaultThemes.put("light", light);
         defaultThemes.put("dark", dark);
         defaultThemes.put("lastTheme", "dark");
@@ -108,7 +107,6 @@ public class ThemeManager {
             themesJSON = (JSONObject) obj;
         } catch (IOException | ParseException e) {
             e.printStackTrace();
-            // Fallback: define two default themes if loading fails
             themesJSON = new JSONObject();
 
             JSONObject light = new JSONObject();
@@ -137,6 +135,8 @@ public class ThemeManager {
             dark.put("toggleIcon", "/icon_light.png");
             themesJSON.put("dark", dark);
             themesJSON.put("lastTheme", "dark");
+
+            createDefaultThemesConfig(file);
         }
     }
 
@@ -154,7 +154,6 @@ public class ThemeManager {
         file.getParentFile().mkdirs();
 
         currentIndex = (currentIndex + 1) % themeKeys.size();
-        // Update the "lastTheme" value in the JSON to preserve the theme choice.
         themesJSON.put("lastTheme", getCurrentThemeKey());
 
         try (FileWriter writer = new FileWriter(file)) {
@@ -220,6 +219,9 @@ public class ThemeManager {
         String themeKey = getCurrentThemeKey();
         JSONObject theme = (JSONObject) themesJSON.get(themeKey);
         Object value = theme.get(key);
+
+        if (value == null) createDefaultThemesConfig(configFile); // TODO Replace this config file restoration fallback with dynamic config population. Overwise the 1% of people who'll ever modify the config to add custom themes would suffer from config completely resetting every time the default keys change.
+
         return value == null ? fallback : (String) value;
     }
 
@@ -244,7 +246,6 @@ public class ThemeManager {
             comp.setBackground(getBackgroundColor());
             comp.setForeground(getForegroundColor());
         } else if (comp instanceof JScrollPane) {
-            // Special treatment for scroll panes: update both the scroll pane and its viewport.
             JScrollPane scrollPane = (JScrollPane) comp;
             scrollPane.setBackground(getBackgroundColor());
             if (scrollPane.getViewport() != null) {
