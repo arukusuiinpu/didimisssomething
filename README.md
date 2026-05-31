@@ -26,7 +26,7 @@ Then go to the configs of your client with the mod installed. Start the client o
 
 **DidIMissSomething does not use anything from the minecraft's code, and sooo any!** Any loader is supported if you can hook into its loading cycle.
 
-As of now, this project is **Architectury-based** and **1.21.1** with support for **fabric** and **neoforge** implemented (I've tried to implement quilt and forge, yet had no time to do so properly).
+As of now, this project is **Architectury-based** and **1.21.1-11** with support for **fabric** and **neoforge** implemented (I've tried to implement quilt and forge, yet had no time to do so properly).
 
 However, I've left the controls for the build in the main **gradle.properties** so you can ask to add a new branch for the necessary version, fork the project, contribute, etc. Whatever you want actually!
 
