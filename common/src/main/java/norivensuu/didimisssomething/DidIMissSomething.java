@@ -25,14 +25,17 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.*;
 
+import static norivensuu.didimisssomething.util.Checksums.*;
+
 public class DidIMissSomething {
 	public static final String MOD_ID = "didimisssomething";
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private static final String projectPath = System.getProperty("user.dir");
+    public static final String projectPath = System.getProperty("user.dir");
 
     public static void initialize() {
+
         LOGGER.info("Haiiii my little meow meows!");
 
         Config.get("useModsMetadataToUpdate", false);
@@ -40,6 +43,11 @@ public class DidIMissSomething {
     }
 
     public static boolean didIMissSomething(Map<String, Object> repositoryApiUrls) {
+        if (!verifySelfJar()) {
+            LOGGER.error("JAR INTEGRITY CHECK FAILED. ABORTING. MAKE SURE THE MOD IS DOWNLOADED FROM A RELIABLE SOURCE!");
+            System.exit(0);
+        }
+
         boolean properApis = !repositoryApiUrls.equals(Map.of(
                 "PLACE_YOUR_API_URL_IN_HERE", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
                 "PLACE_YOUR_MIRROR_API_URL_IN_HERE", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE"

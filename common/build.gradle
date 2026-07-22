@@ -8,4 +8,9 @@ tasks.withType(Jar).configureEach {
 
 tasks.named('processResources') {
     dependsOn(':autoupdater:copyJarToResources')
+    finalizedBy(':didimisssomething:copySelfHashToResources')
+}
+
+tasks.named('sourcesJar') {
+    finalizedBy(':didimisssomething:copySelfHashToResources')
 }

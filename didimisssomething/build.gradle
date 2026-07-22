@@ -1,9 +1,15 @@
+import java.security.MessageDigest
+import java.util.jar.JarFile
+import java.nio.charset.StandardCharsets
+
 plugins {
     id 'dev.architectury.loom'
     id 'architectury-plugin'
     id 'com.github.johnrengelman.shadow'
     id 'maven-publish'
 }
+
+def hashGeneratedDir = layout.buildDirectory.dir("generated/selfhash")
 
 architectury {
     minecraft = rootProject.minecraft_version
@@ -18,7 +24,6 @@ dependencies {
     shadowOnly "net.minidev:accessors-smart:${rootProject.json_smart_version}"
 
     shadowOnly (project(":common")) { transitive = false }
-//    shadowOnly (project(":iinpulib-gradle")) { transitive = false }
 
     def platforms = rootProject.enabled_platforms.split(",")
 
@@ -36,11 +41,17 @@ java {
 tasks.named("sourcesJar").configure {
     archiveBaseName.set(rootProject.archives_base_name)
     archiveClassifier.set('sources')
+
+    exclude { details ->
+        details.file.toPath().startsWith(hashGeneratedDir.get().asFile.toPath())
+    }
 }
 
 shadowJar {
+    dependsOn processResources
+
     archiveBaseName.set(rootProject.archives_base_name)
-    archiveClassifier.set('')
+    archiveClassifier.set('seed')
     zip64 true
 
     configurations = [project.configurations.shadowOnly]
@@ -49,12 +60,97 @@ shadowJar {
 
     exclude 'org/objectweb/asm/**'
     exclude 'META-INF/maven/**'
+    exclude "didimisssomething.sha256"
 
     relocate 'net.minidev.json', "${rootProject.group}.shadow.json"
     relocate 'net.minidev.asm', "${rootProject.group}.shadow.minidev.asm"
 }
 
-tasks.build.dependsOn shadowJar
+tasks.register("seedJar", Jar) {
+    dependsOn tasks.named("shadowJar"), tasks.named("remapJar")
+
+    from({ zipTree(tasks.named("shadowJar", Jar).get().archiveFile.get().asFile) })
+    exclude "didimisssomething.sha256"
+    archiveBaseName.set(rootProject.archives_base_name)
+    archiveClassifier.set("seed")
+    includeEmptyDirs = false
+}
+
+tasks.register("generateSelfHash") {
+    dependsOn tasks.named("shadowJar")
+
+    outputs.upToDateWhen { false }
+
+    outputs.file(hashGeneratedDir.map { it.file("didimisssomething.sha256") })
+
+    doLast {
+        def jarFile = tasks.named("shadowJar", Jar).get().archiveFile.get().asFile
+        if (!jarFile.exists()) {
+            throw new GradleException("Seed jar not found: ${jarFile}")
+        }
+
+        def digest = MessageDigest.getInstance("SHA-256")
+
+        def entries = new JarFile(jarFile).withCloseable { jar ->
+//            println Collections.list(jar.entries())
+            Collections.list(jar.entries()).stream()
+                    .filter { it.name != "didimisssomething.sha256" }
+                    .sorted(Comparator.comparing { it.name })
+                    .toList()
+        }
+
+        def jar = new JarFile(jarFile)
+        try {
+            byte[] buffer = new byte[8192]
+            for (entry in entries) {
+                digest.update(entry.name.getBytes(StandardCharsets.UTF_8))
+//                println entry.name
+                jar.getInputStream(entry).withCloseable { is ->
+                    int read
+                    while ((read = is.read(buffer)) != -1) {
+//                        def hash = digest.digest().collect { String.format("%02x", it) }.join("")
+//                        println hash
+                        digest.update(buffer, 0, read)
+                    }
+                }
+            }
+        } finally {
+            jar.close()
+        }
+
+        def hash = digest.digest().collect { String.format("%02x", it) }.join("")
+        def outFile = hashGeneratedDir.get().file("didimisssomething.sha256").asFile
+        outFile.parentFile.mkdirs()
+        outFile.text = hash + System.lineSeparator()
+        println "Generated didimisssomething.sha256: ${hash}"
+    }
+}
+
+tasks.register('copySelfHashToResources', Copy) {
+    dependsOn tasks.named("generateSelfHash")
+
+    from hashGeneratedDir.get().file("didimisssomething.sha256").asFile
+    into rootProject.file('common/src/main/resources')
+    rename { "didimisssomething.sha256" }
+}
+
+tasks.register("finalJar", Jar) {
+    dependsOn tasks.named("shadowJar"), tasks.named("copySelfHashToResources")
+
+    archiveBaseName.set(rootProject.archives_base_name)
+    archiveClassifier.set("")
+    includeEmptyDirs = false
+
+    from({ zipTree(tasks.named("shadowJar", Jar).get().archiveFile.get().asFile) })
+
+    from(hashGeneratedDir) {
+        include "didimisssomething.sha256"
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.build.dependsOn finalJar
 
 if (project.hasProperty('repsyUsername')) {
     publishing {
@@ -64,8 +160,8 @@ if (project.hasProperty('repsyUsername')) {
                 artifactId = rootProject.archives_base_name
                 version = project.version
 
-                artifact(shadowJar) {
-                    builtBy(shadowJar)
+                artifact(finalJar) {
+                    builtBy(finalJar)
                 }
                 artifact(sourcesJar)
             }
