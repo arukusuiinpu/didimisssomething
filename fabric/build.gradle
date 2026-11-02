@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 architectury {
 	platformSetupLoomIde()
 	fabric()
@@ -23,8 +25,9 @@ configurations {
 dependencies {
 	modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
 
-	common(project(path: ':common', configuration: 'namedElements')) { transitive false }
-	shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
+	common(project(path: ':entrypoint', configuration: 'namedElements')) { transitive false }
+	shadowBundle project(path: ':entrypoint', configuration: 'transformProductionFabric')
+	implementation project(path: ":common")
 }
 
 processResources {
@@ -35,7 +38,7 @@ processResources {
 	}
 }
 
-shadowJar {
+tasks.register('shadowJar', ShadowJar) {
 	configurations = [project.configurations.shadowBundle]
 	archiveClassifier = 'dev-shadow'
 }

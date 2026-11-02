@@ -1,16 +1,20 @@
-architectury {
-    common(rootProject.enabled_platforms.split(","))
+dependencies {
+
+    implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
+    implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
+
+    // Source: https://mvnrepository.com/artifact/com.google.code.gson/gson
+    implementation "com.google.code.gson:gson:${rootProject.gson_version}"
 }
 
-tasks.withType(Jar).configureEach {
-    mustRunAfter(':autoupdater:copyJarToResources')
+def includeLibsWith(name) {
+    configurations.runtimeClasspath.findAll { it.name.contains(name) }.collect {
+        it.isDirectory() ? it : zipTree(it)
+    }
 }
 
-tasks.named('processResources') {
-    dependsOn(':autoupdater:copyJarToResources')
-    finalizedBy(':didimisssomething:copySelfHashToResources')
-}
+jar {
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
 
-tasks.named('sourcesJar') {
-    finalizedBy(':didimisssomething:copySelfHashToResources')
+    from({ includeLibsWith("gson") })
 }

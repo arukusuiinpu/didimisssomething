@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 import java.security.MessageDigest
 import java.util.jar.JarFile
 import java.nio.charset.StandardCharsets
@@ -24,6 +26,7 @@ dependencies {
     shadowOnly "net.minidev:accessors-smart:${rootProject.json_smart_version}"
 
     shadowOnly (project(":common")) { transitive = false }
+    shadowOnly (project(":entrypoint")) { transitive = false }
 
     def platforms = rootProject.enabled_platforms.split(",")
 
@@ -34,10 +37,6 @@ dependencies {
     }
 }
 
-java {
-    withSourcesJar()
-}
-
 tasks.named("sourcesJar").configure {
     archiveBaseName.set(rootProject.archives_base_name)
     archiveClassifier.set('sources')
@@ -45,13 +44,18 @@ tasks.named("sourcesJar").configure {
     exclude { details ->
         details.file.toPath().startsWith(hashGeneratedDir.get().asFile.toPath())
     }
+
+    dependsOn tasks.named("copySelfHashToResources")
+    dependsOn(':autoupdater:copyJarToResources')
 }
 
-shadowJar {
+tasks.register('shadowJar', ShadowJar) {
     dependsOn processResources
 
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+
     archiveBaseName.set(rootProject.archives_base_name)
-    archiveClassifier.set('seed')
+    archiveClassifier.set('shadow')
     zip64 true
 
     configurations = [project.configurations.shadowOnly]
@@ -61,30 +65,38 @@ shadowJar {
     exclude 'org/objectweb/asm/**'
     exclude 'META-INF/maven/**'
     exclude "didimisssomething.sha256"
+    exclude 'module-info.class'
+    exclude 'com/google/gson/**'
 
     relocate 'net.minidev.json', "${rootProject.group}.shadow.json"
     relocate 'net.minidev.asm', "${rootProject.group}.shadow.minidev.asm"
 }
 
 tasks.register("seedJar", Jar) {
-    dependsOn tasks.named("shadowJar"), tasks.named("remapJar")
+    dependsOn tasks.named("shadowJar"), tasks.named("remapJar"), ":autoupdater:copyJarToResources"
+
+    from(project.file('src/main/resources'))
+    zip64 true
 
     from({ zipTree(tasks.named("shadowJar", Jar).get().archiveFile.get().asFile) })
+    exclude 'com/google/gson/**'
     exclude "didimisssomething.sha256"
     archiveBaseName.set(rootProject.archives_base_name)
     archiveClassifier.set("seed")
     includeEmptyDirs = false
+
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
 }
 
 tasks.register("generateSelfHash") {
-    dependsOn tasks.named("shadowJar")
+    dependsOn tasks.named("seedJar")
 
     outputs.upToDateWhen { false }
 
     outputs.file(hashGeneratedDir.map { it.file("didimisssomething.sha256") })
 
     doLast {
-        def jarFile = tasks.named("shadowJar", Jar).get().archiveFile.get().asFile
+        def jarFile = tasks.named("seedJar", Jar).get().archiveFile.get().asFile
         if (!jarFile.exists()) {
             throw new GradleException("Seed jar not found: ${jarFile}")
         }
@@ -108,8 +120,10 @@ tasks.register("generateSelfHash") {
                 jar.getInputStream(entry).withCloseable { is ->
                     int read
                     while ((read = is.read(buffer)) != -1) {
-//                        def hash = digest.digest().collect { String.format("%02x", it) }.join("")
-//                        println hash
+//                        var d = (MessageDigest) digest.clone();
+//
+//                        def hash = d.digest().collect { String.format("%02x", it) }.join("")
+//                        println read + " " + hash + " " + entry.name
                         digest.update(buffer, 0, read)
                     }
                 }
@@ -127,21 +141,24 @@ tasks.register("generateSelfHash") {
 }
 
 tasks.register('copySelfHashToResources', Copy) {
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+
     dependsOn tasks.named("generateSelfHash")
 
     from hashGeneratedDir.get().file("didimisssomething.sha256").asFile
-    into rootProject.file('common/src/main/resources')
+    into rootProject.file('didimisssomething/src/main/resources')
     rename { "didimisssomething.sha256" }
 }
 
 tasks.register("finalJar", Jar) {
-    dependsOn tasks.named("shadowJar"), tasks.named("copySelfHashToResources")
+    dependsOn tasks.named("seedJar"), tasks.named("copySelfHashToResources")
+    dependsOn(':autoupdater:copyJarToResources')
 
     archiveBaseName.set(rootProject.archives_base_name)
     archiveClassifier.set("")
     includeEmptyDirs = false
 
-    from({ zipTree(tasks.named("shadowJar", Jar).get().archiveFile.get().asFile) })
+    from({ zipTree(tasks.named("seedJar", Jar).get().archiveFile.get().asFile) })
 
     from(hashGeneratedDir) {
         include "didimisssomething.sha256"

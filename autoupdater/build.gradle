@@ -7,11 +7,13 @@ def modVersion = rootProject.mod_version
 version = modVersion
 
 dependencies {
-    implementation "commons-io:commons-io:${project.commons_io_version}"
-    implementation "com.googlecode.juniversalchardet:juniversalchardet:${project.juniversalchardet_version}"
+    implementation "commons-io:commons-io:${rootProject.commons_io_version}"
+    implementation "com.googlecode.juniversalchardet:juniversalchardet:${rootProject.juniversalchardet_version}"
 
-    implementation "net.minidev:json-smart:${project.json_smart_version}"
-    implementation "net.minidev:accessors-smart:${project.json_smart_version}"
+    implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
+    implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"
+
+    implementation project(path: ":common")
 }
 
 def includeLibsWith(name) {
@@ -21,7 +23,7 @@ def includeLibsWith(name) {
 }
 
 jar {
-    duplicatesStrategy(DuplicatesStrategy.INCLUDE)
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
 
     manifest {
         attributes 'Main-Class': 'norivensuu.autoupdater.Main'
@@ -31,20 +33,35 @@ jar {
     from({ includeLibsWith('juniversalchardet') })
     from({ includeLibsWith('json-smart') })
     from({ includeLibsWith('accessors-smart') })
+    from({ includeLibsWith('common-' + version) })
 
     exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
 }
+
+jar.dependsOn project(":common").tasks.named("remapJar")
 
 test {
     useJUnitPlatform()
 }
 
-tasks.register('copyJarToResources', Copy) {
+tasks.register('copyJarToEntryResources', Copy) {
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+
     from jar.archiveFile
-    into rootProject.file('common/src/main/resources')
+    into rootProject.file('entrypoint/src/main/resources')
     rename { "autoupdater.jar" }
 
     dependsOn jar
+}
+
+tasks.register('copyJarToResources', Copy) {
+    duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+
+    from jar.archiveFile
+    into rootProject.file('didimisssomething/src/main/resources')
+    rename { "autoupdater.jar" }
+
+    dependsOn tasks.named("copyJarToEntryResources")
 }
 
 build.dependsOn copyJarToResources

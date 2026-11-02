@@ -7,31 +7,15 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
 import static norivensuu.didimisssomething.DidIMissSomething.*;
 
 public final class Checksums {
-    public static boolean isDevelopmentEnvironment() {
-        try {
-            URL location = DidIMissSomething.class.getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation();
-
-            if (location == null) return true;
-
-            String path = new File(location.toURI()).getPath().toLowerCase();
-            return !path.endsWith(".jar") || path.contains("/build/") || path.contains("\\build\\") || path.contains("/temp/") || path.contains("\\temp\\");
-        } catch (Exception e) {
-            return true;
-        }
-    }
+    public static final boolean isDevelopmentEnvironment = System.getenv().get("DEV") != null;
 
     public static String readSelfHash() {
         try (InputStream in = DidIMissSomething.class.getResourceAsStream("/didimisssomething.sha256")) {
@@ -44,7 +28,7 @@ public final class Checksums {
     }
 
     public static boolean verifySelfJar() {
-        if (isDevelopmentEnvironment()) {
+        if (isDevelopmentEnvironment) {
             LOGGER.info("Skipping self-verification in dev environment");
             return true;
         }
@@ -55,7 +39,7 @@ public final class Checksums {
                     .getLocation();
 
             File jarFile = new File(location.toURI());
-//            LOGGER.info(jarFile.getAbsolutePath());
+            LOGGER.info(jarFile.getAbsolutePath());
             String actual = mesJarExcludingSelfHash(jarFile);
             String expected = readSelfHash();
 
@@ -103,7 +87,7 @@ public final class Checksums {
 //                        StringBuilder sb = new StringBuilder();
 //                        for (byte b : out) sb.append(String.format("%02x", b));
 //
-//                        LOGGER.info(sb.toString());
+//                        LOGGER.info(read + " " + sb.toString() + " " + entry.getName());
                         digest.update(buffer, 0, read);
                     }
                 }

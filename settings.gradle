@@ -26,6 +26,7 @@ pluginManagement {
 }
 rootProject.name = "didimisssomething"
 include "common"
+include "entrypoint"
 include "didimisssomething"
 include "autoupdater"
 
