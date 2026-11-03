@@ -26,6 +26,8 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -482,7 +484,9 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         for (int i = 0; i < entryList.size(); i++) {
             var entry = entryList.get(i);
             String apiURL = entry.getKey();
-            String token = entry.getValue().toString();
+            String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+            Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+            String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
             provider = ProvidersRegistry.matching(apiURL);
 
@@ -490,7 +494,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                 boolean isLastEntry = (i == entryList.size() - 1);
 
                 try {
-                    latestRelease = provider.getLatestReleaseVersion(provider.normalizeApi(apiURL).url, token);
+                    latestRelease = provider.getLatestReleaseVersion(provider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
                     log("Latest release: " + latestRelease);
 
                     frame.setTitle("Release " + latestRelease);
@@ -504,7 +508,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                         File finalDownloadFile = downloadFile;
                         Provider finalProvider = provider;
-                        Future<File> future = executor.submit(() -> downloadURL(finalProvider::authenticate, finalProvider.getLatestReleaseURL(finalProvider.normalizeApi(apiURL).url, token), finalDownloadFile, token));
+                        Future<File> future = executor.submit(() -> downloadURL(finalProvider::authenticate, finalProvider.getLatestReleaseURL(finalProvider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange), finalDownloadFile, token));
 
                         if (isLastEntry) {
                             downloadFile = future.get();
@@ -652,12 +656,14 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                                 for (Map.Entry<String, Object> entry : modEntryList) {
                                     String apiURL = entry.getKey();
-                                    String token = entry.getValue().toString();
+                                    String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+                                    Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+                                    String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
                                     var modProvider = ProvidersRegistry.matching(apiURL);
 
                                     if (modProvider != null) {
-                                        modLatestRelease = modProvider.getLatestReleaseURL(modProvider.normalizeApi(apiURL).url, token);
+                                        modLatestRelease = modProvider.getLatestReleaseURL(modProvider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
 
                                         log(json.get("id") + " latest release: " + modLatestRelease);
 
@@ -691,7 +697,10 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                         var entry = modEntryList.get(i);
 
                                         String apiURL = entry.getKey();
-                                        String token = entry.getValue().toString();
+                                        String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+                                        Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+                                        Pattern jarPattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("jarRegex", ".*").toString());
+                                        String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
                                         var modProvider = ProvidersRegistry.matching(apiURL);
 
@@ -706,7 +715,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                                 log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
 
                                                 File finalDownloadFile = modDownloadFile;
-                                                Future<File> future = modExecutor.submit(() -> downloadURL(modProvider::authenticate, modProvider.getLatestReleaseAssetURL(modProvider.normalizeApi(apiURL).url, token), finalDownloadFile, token));
+                                                Future<File> future = modExecutor.submit(() -> downloadURL(modProvider::authenticate, modProvider.getLatestReleaseAssetURL(modProvider.normalizeApi(apiURL).url, token, releasePattern, jarPattern, minecraftVersionRange), finalDownloadFile, token));
 
                                                 if (isLastEntry) {
                                                     modDownloadFile = future.get();

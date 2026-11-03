@@ -6,10 +6,13 @@ import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 import org.apache.commons.io.IOUtils;
 
+import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -31,35 +34,40 @@ public class ProviderGitlab extends Provider {
         }
     }
 
-    public JSONObject getLatestRelease(String apiUrl, String token) throws IOException, ParseException {
-        URL url = URI.create(apiUrl).toURL();
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    public JSONObject getLatestRelease(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
+        HttpsURLConnection connection = (HttpsURLConnection) URI.create(apiUrl).toURL().openConnection();
         connection.setRequestMethod("GET");
 
         authenticate(connection, token);
 
-        InputStream responseStream = connection.getInputStream();
+        InputStream inputStream = connection.getInputStream();
+        String response = new String(inputStream.readAllBytes());
+        JSONParser parser = new JSONParser();
+        JSONArray releases = (JSONArray) parser.parse(response);
 
-        String json = IOUtils.toString(responseStream, StandardCharsets.UTF_8);
-        responseStream.close();
+        for (var release : releases) {
+            Matcher matcher = releasePattern.matcher((String) ((JSONObject) release).get("tag_name"));
 
-        JSONArray releases = (JSONArray) new JSONParser().parse(json);
-        if (!releases.isEmpty()) {
-            return (JSONObject) releases.getFirst();
+            if (matcher.find()) {
+                if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+                    return (JSONObject) release;
+                }
+            }
         }
+
         return null;
     }
 
     @Override
-    public String getLatestReleaseVersion(String apiUrl, String token) throws IOException, ParseException {
-        var release = getLatestRelease(apiUrl, token);
+    public String getLatestReleaseVersion(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
+        var release = getLatestRelease(apiUrl, token, releasePattern, minecraftVersionRange);
 
         return release != null ? release.getAsString("tag_name") : null;
     }
 
     @Override
-    public String getLatestReleaseURL(String apiUrl, String token) throws IOException, ParseException {
-        var release = getLatestRelease(apiUrl, token);
+    public String getLatestReleaseURL(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
+        var release = getLatestRelease(apiUrl, token, releasePattern, minecraftVersionRange);
 
         if (release != null) {
             JSONObject assets = (JSONObject) release.get("assets");
@@ -77,7 +85,7 @@ public class ProviderGitlab extends Provider {
     }
 
     @Override
-    public String getLatestReleaseAssetURL(String apiUrl, String token) {
+    public String getLatestReleaseAssetURL(String apiUrl, String token, Pattern releasePattern, Pattern jarPattern, String minecraftVersionRange) {
         throw new RuntimeException(String.format("Unimplemented getLatestReleaseAssetURL provider for %s. Please contact the developer to implement gitlab asset download support!", apiUrl));
     }
 

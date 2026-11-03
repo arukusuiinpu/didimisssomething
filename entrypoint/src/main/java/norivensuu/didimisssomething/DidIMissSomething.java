@@ -1,5 +1,6 @@
 package norivensuu.didimisssomething;
 
+import net.minidev.json.JSONObject;
 import norivensuu.didimisssomething.common.Config;
 import norivensuu.didimisssomething.common.Main;
 import norivensuu.didimisssomething.common.providers.ProviderGithub;
@@ -17,6 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import static norivensuu.didimisssomething.util.Checksums.*;
 import static norivensuu.didimisssomething.common.Main.*;
@@ -44,11 +46,7 @@ public class DidIMissSomething {
             System.exit(0);
         }
 
-        boolean properApis = !repositoryApiUrls.equals(Map.of(
-                "(github) https://api.github.com/repos/PLACE_YOUR_USERNAME_HERE/PLACE_YOUR_PROJECTNAME_HERE/releases/latest", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
-                "(gitlab) https://gitlab.com/api/v4/projects/PLACE_YOUR_PROJECTID_HERE/releases", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE",
-                "(custom provider) PLACE_YOUR_CUSTOM_PROVIDER_API_HERE", "PLACE_YOUR_CUSTOM_PROVIDER_API_KEY_HERE"
-        ));
+        boolean properApis = !repositoryApiUrls.equals(Config.defaultRepositoryApiUrls);
 
         if (!properApis) {
             LOGGER.warn("Please specify your repositoryApiUrls in {}\\config\\\\{}.json!", new File(projectPath).getAbsolutePath(), MOD_ID);
@@ -59,7 +57,10 @@ public class DidIMissSomething {
         {
             try {
                 String apiURL = entry.getKey();
-                String token = entry.getValue().toString();
+                String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+
+                Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+                String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
                 if (apiURL != null) {
 
@@ -80,7 +81,7 @@ public class DidIMissSomething {
                         for (String line : lines) {
                             if (line.startsWith("latest-release;")) {
                                 String currentRelease = line.split(";")[1].trim();
-                                String latestRelease = provider.getLatestReleaseVersion(provider.normalizeApi(apiURL).url, token);
+                                String latestRelease = provider.getLatestReleaseVersion(provider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
                                 LOGGER.info(latestRelease);
                                 if (!currentRelease.equals(latestRelease)) {
                                     allUpToDate = false;
@@ -95,7 +96,7 @@ public class DidIMissSomething {
                                     String modToken = "";
                                     if (parts.length >= 4) modToken = parts[3].trim();
 
-                                    String latestModRelease = provider.getLatestReleaseVersion(provider.normalizeApi(modApiUrl).url, modToken);
+                                    String latestModRelease = provider.getLatestReleaseVersion(provider.normalizeApi(modApiUrl).url, modToken, releasePattern, minecraftVersionRange);
 
                                     LOGGER.info("{} {} vs {}", modName, latestModRelease, currentVersion);
 

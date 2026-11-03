@@ -1,7 +1,11 @@
 {
   "id": "didimisssomething",
-  "minecraft_version": "1.21.11",
+  "minecraftVersionRange": "*",
   "modRepositoryApiUrls": {
-    "(github) https://api.github.com/repos/arukusuiinpu/didimisssomething/releases/latest": ""
+    "(github) https://api.github.com/repos/arukusuiinpu/didimisssomething/releases/latest": {
+      "token": "",
+      "jarRegex": "(?<modId>.*)(-(?<minecraftVersion>[\\d.]+))?-(?<modVersion>[\\d.]+).jar",
+      "releaseRegex": "(?<modId>[^\\d]*-)?((?<minecraftVersion>[\\d.]+)-)?(?<modVersion>[\\d.]+)"
+    }
   }
 }

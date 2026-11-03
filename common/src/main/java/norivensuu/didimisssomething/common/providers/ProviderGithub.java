@@ -13,6 +13,8 @@ import java.net.ProtocolException;
 import java.net.URI;
 import java.net.URLConnection;
 import java.util.Enumeration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -35,7 +37,9 @@ public class ProviderGithub extends Provider {
         }
     }
 
-    public JSONObject getLatestRelease(String apiUrl, String token) throws IOException, ParseException {
+    public JSONObject getLatestRelease(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
+        if (apiUrl.endsWith("/latest")) apiUrl = apiUrl.substring(0, apiUrl.lastIndexOf("latest")-1);
+
         HttpsURLConnection connection = (HttpsURLConnection) URI.create(apiUrl).toURL().openConnection();
         connection.setRequestMethod("GET");
         connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
@@ -45,28 +49,38 @@ public class ProviderGithub extends Provider {
         InputStream inputStream = connection.getInputStream();
         String response = new String(inputStream.readAllBytes());
         JSONParser parser = new JSONParser();
-        JSONObject release = (JSONObject) parser.parse(response);
+        JSONArray releases = (JSONArray) parser.parse(response);
 
-        return release;
+        for (var release : releases) {
+            Matcher matcher = releasePattern.matcher((String) ((JSONObject) release).get("tag_name"));
+
+            if (matcher.find()) {
+                if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+                    return (JSONObject) release;
+                }
+            }
+        }
+
+        return null;
     }
 
     @Override
-    public String getLatestReleaseVersion(String apiUrl, String token) throws IOException, ParseException {
-        var release = getLatestRelease(apiUrl, token);
+    public String getLatestReleaseVersion(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
+        var release = getLatestRelease(apiUrl, token, releasePattern, minecraftVersionRange);
 
         return release != null ? release.getAsString("tag_name") : null;
     }
 
     @Override
-    public String getLatestReleaseURL(String apiUrl, String token) throws IOException, ParseException {
-        var release = getLatestRelease(apiUrl, token);
+    public String getLatestReleaseURL(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
+        var release = getLatestRelease(apiUrl, token, releasePattern, minecraftVersionRange);
 
         return release != null ? release.getAsString("zipball_url") : null;
     }
 
     @Override
-    public String getLatestReleaseAssetURL(String apiUrl, String token) throws IOException, ParseException {
-        var release = getLatestRelease(apiUrl, token);
+    public String getLatestReleaseAssetURL(String apiUrl, String token, Pattern releasePattern, Pattern jarPattern, String minecraftVersionRange) throws IOException, ParseException {
+        var release = getLatestRelease(apiUrl, token, releasePattern, minecraftVersionRange);
 
         JSONArray assets = (JSONArray) release.get("assets");
 
@@ -82,7 +96,9 @@ public class ProviderGithub extends Provider {
 
             if (name == null) continue;
 
-            if (name.endsWith(".jar") && !name.endsWith("-sources.jar")) {
+            Matcher matcher = jarPattern.matcher(name);
+
+            if (matcher.matches() && (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange))) {
                 selectedAsset = asset;
                 break;
             }

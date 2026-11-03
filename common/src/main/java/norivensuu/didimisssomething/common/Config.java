@@ -71,11 +71,22 @@ public class Config {
         return (T) value;
     }
 
+    public static final Map<String, Object> defaultRepositoryApiUrls = Map.of(
+            "(github) https://api.github.com/repos/PLACE_YOUR_USERNAME_HERE/PLACE_YOUR_PROJECTNAME_HERE/releases/latest", Map.of(
+            "token", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
+            "releaseRegex", ".*"
+            ),
+            "(gitlab) https://gitlab.com/api/v4/projects/PLACE_YOUR_PROJECTID_HERE/releases", Map.of(
+            "token", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE",
+            "releaseRegex", ".*"
+            ),
+            "(custom provider) PLACE_YOUR_CUSTOM_PROVIDER_API_HERE", Map.of(
+            "token", "PLACE_YOUR_CUSTOM_PROVIDER_API_KEY_HERE",
+            "releaseRegex", "PLACE_YOUR_CUSTOM_RELEASE_REGEX_HERE (ex: (?<modId>[^\\d]*-)?((?<minecraftVersion>[\\d.]+)-)?(?<modVersion>[\\d.]+))"
+            )
+    );
+
     public static Map<String, Object> getRepositoryApiUrls() {
-        return get("repositoryApiUrls", Map.of(
-                "(github) https://api.github.com/repos/PLACE_YOUR_USERNAME_HERE/PLACE_YOUR_PROJECTNAME_HERE/releases/latest", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
-                "(gitlab) https://gitlab.com/api/v4/projects/PLACE_YOUR_PROJECTID_HERE/releases", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE",
-                "(custom provider) PLACE_YOUR_CUSTOM_PROVIDER_API_HERE", "PLACE_YOUR_CUSTOM_PROVIDER_API_KEY_HERE"
-        ));
+        return get("repositoryApiUrls", defaultRepositoryApiUrls);
     }
 }
