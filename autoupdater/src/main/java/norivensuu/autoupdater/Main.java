@@ -648,7 +648,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                             var json = readMetaFromJar(sourceFile);
 
                             try {
-                                assert json != null;
                                 Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
 
                                 String jsonId = json.get("id").toString();
@@ -678,7 +677,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                     }
                                 }
 
-                                modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
+                                modDownloadFile = new File(String.format("downloads/%s.jar", json.get("id")));
 
                                 File dir = modDownloadFile;
 
@@ -704,7 +703,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                         String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
                                         Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
                                         Pattern jarPattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("jarRegex", ".*").toString());
-                                        String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
+                                        String minecraftVersionRange = (String) json.getOrDefault("minecraftVersionRange", "*");
 
                                         var modProvider = ProvidersRegistry.matching(apiURL);
 
@@ -749,7 +748,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                     destFile.getParentFile().mkdirs();
                                 }
 
-                                assert modDownloadFile != null;
                                 modDownloadFile.getParentFile().delete();
                             }
                             catch (Exception e) {
@@ -758,8 +756,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                         }
 
                         try {
-                            assert sourceFile != null;
-
                             FileUtils.copyFile(sourceFile, destFile);
 
                             Files.writeString(referenceFile.toPath(),

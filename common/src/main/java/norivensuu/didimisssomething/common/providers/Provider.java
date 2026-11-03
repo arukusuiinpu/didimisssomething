@@ -61,7 +61,7 @@ public abstract class Provider {
 
         Matcher matcher = pattern.matcher(versionRange);
 
-        if (matcher.matches()) {
+        if (matcher.find()) {
             if (matcher.group("any") != null) return true;
             if (matcher.group("single") != null) return compareVersions(version, matcher.group("single")) >= 0;
             if (matcher.group("lessOrEq") != null) return compareVersions(version, matcher.group("lessOrEqV")) <= 0;

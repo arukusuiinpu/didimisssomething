@@ -131,38 +131,6 @@ public class DidIMissSomething {
         return false;
     }
 
-    public static String computeFolderHash(File folder) {
-        List<String> fileData = new ArrayList<>();
-        File[] files = folder.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    fileData.add(computeFolderHash(file));
-                } else {
-                    fileData.add(file.getAbsolutePath() + file.lastModified() + file.length());
-                }
-            }
-        }
-        Collections.sort(fileData);
-        StringBuilder sb = new StringBuilder();
-        for (String s : fileData) {
-            sb.append(s);
-        }
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
-            BigInteger bigInt = new BigInteger(1, digest);
-            String hashText = bigInt.toString(16);
-            while (hashText.length() < 32) {
-                hashText = "0" + hashText;
-            }
-            return hashText;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "";
-        }
-    }
-
     public static void restartGame() {
         createAndLaunchUpdater();
     }
