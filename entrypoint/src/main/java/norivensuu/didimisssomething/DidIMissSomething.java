@@ -110,8 +110,7 @@ public class DidIMissSomething {
                         }
                         if (lines.isEmpty() || !lines.getFirst().startsWith("latest-release;")) allUpToDate = false;
 
-                        if (!allUpToDate || !checkModsAdditionalFolder()) {
-                            checkModsAdditionalFolder();
+                        if (!allUpToDate) {
                             restartGame();
                         }
 
@@ -130,39 +129,6 @@ public class DidIMissSomething {
         }
 
         return false;
-    }
-
-    public static boolean checkModsAdditionalFolder() {
-        LOGGER.info("Checking mods-additional...");
-        File modsAdditional = new File(projectPath + "/mods-additional");
-        if (!modsAdditional.exists()) {
-            modsAdditional.mkdirs();
-        }
-
-        String currentHash = computeFolderHash(modsAdditional);
-        File stateFile = new File(projectPath + "/didimisssomething/mods-additional-state.txt");
-        String previousHash = "";
-        if (stateFile.exists()) {
-            try {
-                previousHash = new String(Files.readAllBytes(stateFile.toPath()), StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        if (!currentHash.equals(previousHash)) {
-            try {
-                Files.write(stateFile.toPath(), currentHash.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            LOGGER.info("mods-additional folder has changed. Restarting game...");
-            return false;
-        }
-        else {
-            LOGGER.info("There were no additional mods :>");
-            return true;
-        }
     }
 
     public static String computeFolderHash(File folder) {
