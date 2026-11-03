@@ -1,13 +1,13 @@
 package norivensuu.didimisssomething.common.providers;
 
 import net.minidev.json.parser.ParseException;
+import norivensuu.didimisssomething.common.ProvidersApi;
 
+import javax.net.ssl.HttpsURLConnection;
 import java.io.File;
 import java.io.IOException;
+import java.net.ProtocolException;
 import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,8 +19,8 @@ public abstract class Provider {
         this.id = id;
     }
 
-    public ProviderApi normalizeApi(String rawApi) {
-        return new ProviderApi(rawApi);
+    public ProvidersApi normalizeApi(String rawApi) {
+        return new ProvidersApi(rawApi);
     }
 
     public static int compareVersions(String v1, String v2) {
@@ -78,6 +78,7 @@ public abstract class Provider {
 
     public abstract boolean validateApi(String api);
     public abstract void authenticate(URLConnection connection, String token);
+    public abstract void setupRequest(HttpsURLConnection connection) throws ProtocolException;
 
     public abstract String getLatestReleaseVersion(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException;
 

@@ -37,13 +37,18 @@ public class ProviderGithub extends Provider {
         }
     }
 
+    @Override
+    public void setupRequest(HttpsURLConnection connection) throws ProtocolException {
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
+    }
+
     public JSONObject getLatestRelease(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
         if (apiUrl.endsWith("/latest")) apiUrl = apiUrl.substring(0, apiUrl.lastIndexOf("latest")-1);
 
         HttpsURLConnection connection = (HttpsURLConnection) URI.create(apiUrl).toURL().openConnection();
-        connection.setRequestMethod("GET");
-        connection.setRequestProperty("Accept", "application/vnd.github.v3+json");
 
+        setupRequest(connection);
         authenticate(connection, token);
 
         InputStream inputStream = connection.getInputStream();

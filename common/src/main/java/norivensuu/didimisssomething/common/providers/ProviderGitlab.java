@@ -34,10 +34,15 @@ public class ProviderGitlab extends Provider {
         }
     }
 
+    @Override
+    public void setupRequest(HttpsURLConnection connection) throws ProtocolException {
+        connection.setRequestMethod("GET");
+    }
+
     public JSONObject getLatestRelease(String apiUrl, String token, Pattern releasePattern, String minecraftVersionRange) throws IOException, ParseException {
         HttpsURLConnection connection = (HttpsURLConnection) URI.create(apiUrl).toURL().openConnection();
-        connection.setRequestMethod("GET");
 
+        setupRequest(connection);
         authenticate(connection, token);
 
         InputStream inputStream = connection.getInputStream();

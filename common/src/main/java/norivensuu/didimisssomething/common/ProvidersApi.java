@@ -1,17 +1,17 @@
-package norivensuu.didimisssomething.common.providers;
+package norivensuu.didimisssomething.common;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class ProviderApi {
+public class ProvidersApi {
     public String id;
     public String url;
 
-    public ProviderApi(String rawApi) {
+    public ProvidersApi(String rawApi) {
         normalizeApi(rawApi);
     }
 
-    public ProviderApi(String id, String url) {
+    public ProvidersApi(String id, String url) {
         this.id = id;
         this.url = url;
     }

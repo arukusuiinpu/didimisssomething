@@ -3,9 +3,10 @@ package norivensuu.didimisssomething;
 import net.minidev.json.JSONObject;
 import norivensuu.didimisssomething.common.Config;
 import norivensuu.didimisssomething.common.Main;
+import norivensuu.didimisssomething.common.ProvidersBenchmark;
 import norivensuu.didimisssomething.common.providers.ProviderGithub;
 import norivensuu.didimisssomething.common.providers.ProviderGitlab;
-import norivensuu.didimisssomething.common.providers.ProvidersRegistry;
+import norivensuu.didimisssomething.common.ProvidersRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +54,7 @@ public class DidIMissSomething {
             return false;
         }
 
-        for (var entry : repositoryApiUrls.entrySet())
+        for (var entry : ProvidersBenchmark.pingProviders(repositoryApiUrls).entrySet())
         {
             try {
                 String apiURL = entry.getKey();
@@ -221,7 +222,7 @@ public class DidIMissSomething {
 
             ProcessBuilder pb = new ProcessBuilder(javaBin, "-jar", updaterJar.getAbsolutePath());
             pb.directory(new File(projectPath + "/didimisssomething"));
-//            pb.inheritIO();
+            pb.inheritIO();
             LOGGER.info("Launching autoupdater.jar...");
             pb.start();
             LOGGER.info("DO NOT START MINECRAFT UNTIL THE UPDATER IS DONE!");

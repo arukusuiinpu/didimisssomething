@@ -4,9 +4,10 @@ import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 import norivensuu.didimisssomething.common.Config;
+import norivensuu.didimisssomething.common.ProvidersBenchmark;
+import norivensuu.didimisssomething.common.ProvidersRegistry;
 import norivensuu.didimisssomething.common.providers.*;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.mozilla.universalchardet.UniversalDetector;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -26,7 +27,6 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -121,8 +121,8 @@ class StateRecorder {
  */
 public class Main {
     public static void main(String[] args) {
-        ProvidersRegistry.tryRegister(new ProviderGithub());
-        ProvidersRegistry.tryRegister(new ProviderGitlab());
+        norivensuu.didimisssomething.common.ProvidersRegistry.tryRegister(new ProviderGithub());
+        norivensuu.didimisssomething.common.ProvidersRegistry.tryRegister(new ProviderGitlab());
 
         SwingUtilities.invokeLater(() -> {
             UpdaterFrame frame = new UpdaterFrame();
@@ -442,7 +442,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
         Config.load();
 
-        this.repositoryApiUrls = Config.getRepositoryApiUrls();
+        this.repositoryApiUrls = ProvidersBenchmark.pingProviders(Config.getRepositoryApiUrls());
     }
 
     @Override
@@ -488,7 +488,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
             String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
-            provider = ProvidersRegistry.matching(apiURL);
+            provider = norivensuu.didimisssomething.common.ProvidersRegistry.matching(apiURL);
 
             if (provider != null) {
                 boolean isLastEntry = (i == entryList.size() - 1);
@@ -644,9 +644,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                         destFile.getParentFile().mkdirs();
 
-//                        log(String.format("%s", jarContainsMeta(sourceFile)));
-
-                        if (Config.get("useModsMetadataToUpdate", false) && sourceFile.getName().endsWith(".jar") && jarContainsMeta(sourceFile)) {
+                        if (Config.get("useModsMetadataToUpdate", false) && sourceFile.toString().endsWith(".jar") && jarContainsMeta(sourceFile)) {
                             var json = readMetaFromJar(sourceFile);
 
                             try {
@@ -666,7 +664,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                     Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
                                     String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
-                                    var modProvider = ProvidersRegistry.matching(apiURL);
+                                    var modProvider = norivensuu.didimisssomething.common.ProvidersRegistry.matching(apiURL);
 
                                     if (modProvider != null) {
                                         modLatestRelease = modProvider.getLatestReleaseVersion(modProvider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
@@ -755,7 +753,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                 modDownloadFile.getParentFile().delete();
                             }
                             catch (Exception e) {
-                                log(e.getMessage());
+                                log(Arrays.toString(e.getStackTrace()));
                             }
                         }
 

@@ -1,4 +1,6 @@
-package norivensuu.didimisssomething.common.providers;
+package norivensuu.didimisssomething.common;
+
+import norivensuu.didimisssomething.common.providers.Provider;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,7 +30,7 @@ public class ProvidersRegistry {
     }
 
     public static <T extends Provider> T matching(String api) {
-        var providerApi = new ProviderApi(api);
+        var providerApi = new ProvidersApi(api);
 
         for (var entry : providers.entrySet().stream().filter((entry) -> providerApi.id == null || providerApi.id.isBlank() || entry.getKey().equals(providerApi.id)).collect(Collectors.toSet())) {
             Provider provider = entry.getValue();
