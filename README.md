@@ -6,7 +6,7 @@ It uses [GitHub Api](https://api.github.com/) to get the **latest release** and 
 
 # Can I use it with my own repository?
 
-Yes, you can! The mod has its own config file (didimisssomething.txt), just specify your **apiURLs** with their respective **tokens** and **releaseRegex data** in there and you're done!
+Yes, you can! The mod has its own config file (didimisssomething.json), just specify your **apiURLs** with their respective **tokens** and **releaseRegex data** in there and you're done!
 - **the key of the json dictionary for repositoryApis** is your GitHub repository address, but instead of **https://github.com/author/repositoryname** it is **https://api.github.com/repos/author/repositoryname/releases**
 - **the value of the dictionary** contains the token, which is needed if your repository is private, and you want to give access to it only through the config file for your modpack, create one [here](https://github.com/settings/tokens) (you can use both Fine-grained and Classic)
 - (if you're using gitlab, the api address is **https://gitlab.com/api/v4/projects/projectid/releases**), the token is [here](https://gitlab.com/-/user_settings/personal_access_tokens)
