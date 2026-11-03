@@ -18,7 +18,7 @@ Yes, you can! The mod has its own config file (didimisssomething.txt), just spec
 Ohhhh that's simple, *if doing this for the first time* **create a new repository** (host) and structure it like your minecraft folder, so put the **\mods** in there, **\config**, and so on.
 ![image](https://github.com/user-attachments/assets/a858cc95-9c88-4f7a-b884-8dbe912129a3)
 
-Then go to the configs of your client with the mod installed. Start the client once if **didimisssomething.txt** and **didimisssomething-mirror.txt** do not exist in that folder. After that, put the correct data into them (**Can I use it with my own repository?** part).
+Then go to the configs of your client with the mod installed. Start the client once if **didimisssomething.json** does not exist in that folder. After that, put the correct data into them (**Can I use it with my own repository?** part).
 
 **If you already have an established repository**, all you need to do now is to make a **new release** and make sure to mark it as the **latest release**.
 
@@ -26,7 +26,7 @@ Then go to the configs of your client with the mod installed. Start the client o
 
 **DidIMissSomething does not use anything from the minecraft's code, and sooo any!** Any loader is supported if you can hook into its loading cycle.
 
-As of now, this project is **Architectury-based** and **1.21.1-11** with support for **fabric** and **neoforge** implemented (I've tried to implement quilt and forge, yet had no time to do so properly).
+As of now, this project is **Architectury-based** and **1.21.1-11 (or rather version-agnostic)** with support for **fabric** and **neoforge** implemented (I've tried to implement quilt and forge, yet had no time to do so properly).
 
 However, I've left the controls for the build in the main **gradle.properties** so you can ask to add a new branch for the necessary version, fork the project, contribute, etc. Whatever you want actually!
 
