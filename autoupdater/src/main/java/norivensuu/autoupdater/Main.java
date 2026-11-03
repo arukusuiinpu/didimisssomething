@@ -551,7 +551,16 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
             stateRecorder.changeState("unpack");
             if (unpackDir.exists()) {
-                FileUtils.deleteDirectory(unpackDir);
+                try {
+                    FileUtils.deleteDirectory(unpackDir);
+                }
+                catch (DirectoryNotEmptyException e) {
+                    int i = 0;
+                    while (new File(unpackDir.getAbsolutePath(), String.valueOf(i)).exists()) {
+                        i++;
+                    }
+                    unpackDir = new File(unpackDir.getAbsolutePath(), String.valueOf(i));
+                }
             }
             unpackDir.mkdirs();
             log("Unpacking archive...");
@@ -624,17 +633,14 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         if (unpackDir.exists() && unpackDir.isDirectory()) {
             referenceFile.delete();
             referenceFile.createNewFile();
+            File finalUnpackDir = unpackDir;
             Files.walk(unpackDir.toPath())
                     .filter(Files::isRegularFile)
                     .forEach(path -> {
 
                         File sourceFile = path.toFile();
-                        Path relative = unpackDir.toPath().relativize(path);
-                        File absoluteParent = relative.toFile();
-                        while (absoluteParent.getParentFile() != null) {
-                            absoluteParent = absoluteParent.getParentFile();
-                        }
-                        File destFile = new File(baseDir, relative.toString().replace(absoluteParent.getName() + "\\", ""));
+                        Path relative = finalUnpackDir.toPath().relativize(path);
+                        File destFile = new File(baseDir, relative.toString());
 
                         destFile.getParentFile().mkdirs();
 
@@ -663,7 +669,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                     var modProvider = ProvidersRegistry.matching(apiURL);
 
                                     if (modProvider != null) {
-                                        modLatestRelease = modProvider.getLatestReleaseURL(modProvider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
+                                        modLatestRelease = modProvider.getLatestReleaseVersion(modProvider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
 
                                         log(json.get("id") + " latest release: " + modLatestRelease);
 
@@ -710,7 +716,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                                             try {
                                                 stateRecorder.changeState("download");
 
-                                                modDownloadFile = new File(String.format("downloads/%s", json.get("id")));
+                                                modDownloadFile = new File(String.format("downloads/%s.jar", json.get("id")));
                                                 modDownloadFile.getParentFile().mkdirs();
                                                 log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
 
@@ -755,6 +761,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                         try {
                             assert sourceFile != null;
+
                             FileUtils.copyFile(sourceFile, destFile);
 
                             Files.writeString(referenceFile.toPath(),

@@ -43,10 +43,6 @@ subprojects {
 
     dependencies {
         minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
-        mappings loom.layered {
-            it.mappings("net.fabricmc:yarn:${project.yarn_mappings}:v2")
-            it.mappings("dev.architectury:yarn-mappings-patch-neoforge:${project.yarn_mappings_patch_neoforge_version}")
-        }
 
         implementation "net.minidev:json-smart:${rootProject.json_smart_version}"
         implementation "net.minidev:accessors-smart:${rootProject.json_smart_version}"

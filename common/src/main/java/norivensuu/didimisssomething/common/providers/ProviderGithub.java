@@ -54,10 +54,16 @@ public class ProviderGithub extends Provider {
         for (var release : releases) {
             Matcher matcher = releasePattern.matcher((String) ((JSONObject) release).get("tag_name"));
 
-            if (matcher.find()) {
-                if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+            if (matcher.matches()) {
+                try {
+                    if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+                        return (JSONObject) release;
+                    }
+                }
+                catch (Exception e) {
                     return (JSONObject) release;
                 }
+                break;
             }
         }
 
@@ -98,8 +104,15 @@ public class ProviderGithub extends Provider {
 
             Matcher matcher = jarPattern.matcher(name);
 
-            if (matcher.matches() && (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange))) {
-                selectedAsset = asset;
+            if (matcher.matches()) {
+                try {
+                    if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+                        selectedAsset = asset;
+                    }
+                }
+                catch (Exception e) {
+                    selectedAsset = asset;
+                }
                 break;
             }
         }
@@ -125,6 +138,9 @@ public class ProviderGithub extends Provider {
     public boolean unpackRelease(File file, String outputDir) throws IOException {
         try (ZipFile zipFile = new ZipFile(file)) {
             String root = findCommonRoot(zipFile);
+
+            if (root != null && root.equals("latest-release"))
+                root = null;
 
             Enumeration<? extends ZipEntry> entries = zipFile.entries();
             while (entries.hasMoreElements()) {

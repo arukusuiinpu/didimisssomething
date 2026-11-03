@@ -25,6 +25,11 @@ configurations {
 dependencies {
     neoForge "net.neoforged:neoforge:${rootProject.neoforge_loader_version}"
 
+    mappings loom.layered {
+        it.mappings("net.fabricmc:yarn:${project.yarn_mappings}:v2")
+        it.mappings("dev.architectury:yarn-mappings-patch-neoforge:${project.yarn_mappings_patch_neoforge_version}")
+    }
+
     common(project(path: ":entrypoint", configuration: "namedElements"))
     shadowBundle project(path: ':entrypoint', configuration: 'transformProductionNeoForge')
     shadowBundle project(path: ":common")

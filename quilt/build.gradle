@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 architectury {
 	platformSetupLoomIde()
 	loader("quilt")
@@ -23,8 +25,14 @@ configurations {
 dependencies {
 	modImplementation "org.quiltmc:quilt-loader:${rootProject.quilt_loader_version}"
 
-	common(project(path: ":common", configuration: "namedElements")) { transitive false }
+	mappings loom.layered {
+		it.mappings("net.fabricmc:yarn:${project.yarn_mappings}:v2")
+		it.mappings("dev.architectury:yarn-mappings-patch-neoforge:${project.yarn_mappings_patch_neoforge_version}")
+	}
+
+	common(project(path: ':entrypoint', configuration: 'namedElements'))
 	shadowBundle project(path: ':common', configuration: 'transformProductionQuilt')
+	shadowBundle project(path: ":common")
 }
 
 processResources {
@@ -37,11 +45,7 @@ processResources {
 	}
 }
 
-shadowJar {
+tasks.register('shadowJar', ShadowJar) {
 	configurations = [project.configurations.shadowBundle]
 	archiveClassifier = 'dev-shadow'
-}
-
-remapJar {
-	inputFile.set shadowJar.archiveFile
 }

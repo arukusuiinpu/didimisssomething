@@ -72,12 +72,12 @@ public class Config {
     }
 
     public static final Map<String, Object> defaultRepositoryApiUrls = Map.of(
-            "(github) https://api.github.com/repos/PLACE_YOUR_USERNAME_HERE/PLACE_YOUR_PROJECTNAME_HERE/releases/latest", Map.of(
-            "token", "PLACE_YOUR_GITHUB_TOKEN_IN_HERE",
+            "(github) https://api.github.com/repos/PLACE_YOUR_USERNAME_HERE/PLACE_YOUR_PROJECTNAME_HERE/releases", Map.of(
+            "token", "PLACE_YOUR_GITHUB_TOKEN_HERE",
             "releaseRegex", ".*"
             ),
             "(gitlab) https://gitlab.com/api/v4/projects/PLACE_YOUR_PROJECTID_HERE/releases", Map.of(
-            "token", "PLACE_YOUR_GITLAB_TOKEN_IN_HERE",
+            "token", "PLACE_YOUR_GITLAB_TOKEN_HERE",
             "releaseRegex", ".*"
             ),
             "(custom provider) PLACE_YOUR_CUSTOM_PROVIDER_API_HERE", Map.of(

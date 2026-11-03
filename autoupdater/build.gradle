@@ -7,6 +7,11 @@ def modVersion = rootProject.mod_version
 version = modVersion
 
 dependencies {
+    mappings loom.layered {
+        it.mappings("net.fabricmc:yarn:${project.yarn_mappings}:v2")
+        it.mappings("dev.architectury:yarn-mappings-patch-neoforge:${project.yarn_mappings_patch_neoforge_version}")
+    }
+
     implementation "commons-io:commons-io:${rootProject.commons_io_version}"
     implementation "com.googlecode.juniversalchardet:juniversalchardet:${rootProject.juniversalchardet_version}"
 

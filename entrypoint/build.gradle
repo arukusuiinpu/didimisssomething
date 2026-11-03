@@ -10,6 +10,11 @@ configurations.runtimeClasspath {
 
 dependencies {
     implementation project(path: ":common")
+
+    mappings loom.layered {
+        it.mappings("net.fabricmc:yarn:${project.yarn_mappings}:v2")
+        it.mappings("dev.architectury:yarn-mappings-patch-neoforge:${project.yarn_mappings_patch_neoforge_version}")
+    }
 }
 
 tasks.named('sourcesJar') {

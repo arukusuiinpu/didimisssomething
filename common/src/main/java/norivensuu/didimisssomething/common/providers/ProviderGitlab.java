@@ -48,10 +48,16 @@ public class ProviderGitlab extends Provider {
         for (var release : releases) {
             Matcher matcher = releasePattern.matcher((String) ((JSONObject) release).get("tag_name"));
 
-            if (matcher.find()) {
-                if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+            if (matcher.matches()) {
+                try {
+                    if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+                        return (JSONObject) release;
+                    }
+                }
+                catch (Exception e) {
                     return (JSONObject) release;
                 }
+                break;
             }
         }
 
@@ -85,14 +91,63 @@ public class ProviderGitlab extends Provider {
     }
 
     @Override
-    public String getLatestReleaseAssetURL(String apiUrl, String token, Pattern releasePattern, Pattern jarPattern, String minecraftVersionRange) {
-        throw new RuntimeException(String.format("Unimplemented getLatestReleaseAssetURL provider for %s. Please contact the developer to implement gitlab asset download support!", apiUrl));
+    public String getLatestReleaseAssetURL(String apiUrl, String token, Pattern releasePattern, Pattern jarPattern, String minecraftVersionRange) throws IOException, ParseException {
+        var release = getLatestRelease(apiUrl, token, releasePattern, minecraftVersionRange);
+
+        JSONObject assets = (JSONObject) release.get("assets");
+        JSONArray sources = (JSONArray) assets.get("sources");
+
+        if (sources == null || sources.isEmpty()) {
+            return null;
+        }
+
+        JSONObject selectedAsset = null;
+
+        for (Object obj : sources) {
+            JSONObject asset = (JSONObject) obj;
+            String url = asset.getAsString("url");
+
+            if (url == null) continue;
+
+            Matcher matcher = jarPattern.matcher(url.substring(url.lastIndexOf("/")+1));
+
+            if (matcher.matches()) {
+                try {
+                    if (matcher.group("minecraftVersion") == null || Provider.checkVersion(matcher.group("minecraftVersion"), minecraftVersionRange)) {
+                        selectedAsset = asset;
+                    }
+                }
+                catch (Exception e) {
+                    selectedAsset = asset;
+                }
+                break;
+            }
+        }
+
+        if (selectedAsset == null) {
+            selectedAsset = (JSONObject) sources.getFirst();
+        }
+
+        String downloadUrl = selectedAsset.getAsString("url");
+
+        if (downloadUrl == null) {
+            return null;
+        }
+
+        downloadUrl = downloadUrl.replace("%2B", "+");
+        downloadUrl = downloadUrl.replace("%5B", "[");
+        downloadUrl = downloadUrl.replace("%5D", "]");
+
+        return downloadUrl;
     }
 
     @Override
     public boolean unpackRelease(File file, String outputDir) throws IOException {
         try (ZipFile zipFile = new ZipFile(file)) {
             String root = findCommonRoot(zipFile);
+
+            if (root != null && root.equals("latest-release"))
+                root = null;
 
             Enumeration<? extends ZipEntry> entries = zipFile.entries();
             while (entries.hasMoreElements()) {
