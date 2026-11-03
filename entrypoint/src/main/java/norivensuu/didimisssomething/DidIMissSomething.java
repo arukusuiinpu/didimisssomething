@@ -108,11 +108,15 @@ public class DidIMissSomething {
                             }
                         }
                         if (lines.isEmpty() || !lines.getFirst().startsWith("latest-release;")) allUpToDate = false;
-                        if (allUpToDate) LOGGER.info("The latest releases are already in the file.");
 
                         if (!allUpToDate || !checkModsAdditionalFolder()) {
                             checkModsAdditionalFolder();
                             restartGame();
+                        }
+
+                        if (allUpToDate) {
+                            LOGGER.info("The latest releases are already in the file.");
+                            break;
                         }
                     }
                 } else {
