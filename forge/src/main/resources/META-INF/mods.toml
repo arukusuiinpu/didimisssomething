@@ -1,6 +1,5 @@
 modLoader="javafml"
-loaderVersion="[52,)"
-license="CC0-1.0"
+license="Apache-NON-AI-2.0"
 
 [[mods]]
 modId="didimisssomething"

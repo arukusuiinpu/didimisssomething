@@ -11,30 +11,25 @@
 				"norivensuu": "Some random person"
 			},
 			"contact": {
-				"homepage": "https://github.com/arukusuiinpu",
+				"homepage": "https://personal.arukusu.netcraze.link",
 				"sources": "https://github.com/arukusuiinpu/didimisssomething/"
 			},
-			"license": "CC0-1.0",
+			"license": "Apache-2.0",
 			"icon": "assets/didimisssomething/icon.png"
 		},
 		"intermediate_mappings": "net.fabricmc:intermediary",
 		"entrypoints": {
-			"preLaunch": [
+			"pre_launch": [
 				"norivensuu.didimisssomething.quilt.DidIMissSomethingQuilt"
 			]
 		},
 		"depends": [
-			{
-				"id": "quiltloader",
-				"versions": ">=0.29.0"
-			},
 			{
 				"id": "java",
 				"versions": ">=21"
 			}
 		]
 	},
-	"mixin": "bingus_mod.mixins.json",
 	"minecraft": {
 		"environment": "client"
 	}

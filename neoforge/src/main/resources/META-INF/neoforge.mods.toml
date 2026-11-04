@@ -1,6 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[4,)"
-license = "Apache NON-AI License, Version 2.0"
+license = "Apache-NON-AI-2.0"
 
 [[mods]]
 modId = "didimisssomething"
@@ -8,10 +7,3 @@ version = "${version}"
 displayName = "Did I miss something?"
 authors = "norivensuu"
 description = "A handsome mod which automatically downloads the latest modpack from a specified repository."
-
-# NeoForge dependency
-[[dependencies.didimisssomething]]
-modId = "neoforge"
-mandatory = false
-ordering = "NONE"
-side = "BOTH"

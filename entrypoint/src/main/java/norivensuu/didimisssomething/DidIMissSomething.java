@@ -36,6 +36,8 @@ public class DidIMissSomething {
         ProvidersRegistry.tryRegister(new ProviderGitlab());
 
         Config.get("useModsMetadataToUpdate", false);
+        Config.get("automaticallyUpdateDidIMissSomething", false);
+        Config.get("minecraftVersionRange", "*");
         didIMissSomething(Config.getRepositoryApiUrls());
     }
 
