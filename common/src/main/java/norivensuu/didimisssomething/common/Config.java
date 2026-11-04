@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import static norivensuu.didimisssomething.common.Main.*;
+import static norivensuu.didimisssomething.common.Common.*;
 
 public class Config {
     private static final File CONFIG_FILE = new File(projectPath + "/config/" + MOD_ID + ".json");

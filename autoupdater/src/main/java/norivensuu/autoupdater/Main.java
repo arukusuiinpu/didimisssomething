@@ -3,6 +3,7 @@ package norivensuu.autoupdater;
 import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
+import norivensuu.didimisssomething.common.Common;
 import norivensuu.didimisssomething.common.Config;
 import norivensuu.didimisssomething.common.ProvidersBenchmark;
 import norivensuu.didimisssomething.common.ProvidersRegistry;
@@ -31,7 +32,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static norivensuu.didimisssomething.common.Main.timeoutMinutes;
+import static norivensuu.didimisssomething.common.Common.timeoutMinutes;
 
 /**
  * UpdaterState is a simple container representing one state of the updater.
@@ -524,7 +525,7 @@ class UpdaterWorker extends SwingWorker<Void, String> {
 
                     downloadFile = null;
                 } catch (Exception e) {
-                    log("Error downloading from " + apiURL + ": " + e.getMessage());
+                    log("Error downloading from " + apiURL + ": " + e);
 
                     downloadFile = null;
                 }
@@ -535,15 +536,139 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         }
         executor.shutdown();
 
-        if (downloadFile == null || latestRelease == null) {
-            log("Something went wrong with your downloadFile or latestRelease string and they were not initialized.");
-            stateRecorder.changeState("error");
-            cancel(true);
-            return null;
+        File baseDir = new File(System.getProperty("user.dir")).getParentFile();
+        File didimisssomethingDir = new File(System.getProperty("user.dir"));
+        File modsDir = new File(baseDir, "mods");
+
+        StringBuilder releaseInfo = new StringBuilder("latest-release;" + latestRelease);
+        Map<String, List<Object>> ids = new HashMap<>();
+
+        if (Config.get("automaticallyUpdateDidIMissSomething", false)) {
+            try (InputStream in = Common.class.getResourceAsStream("/didimisssomething.meta.json")) {
+                JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+
+                if (in != null) {
+                    JSONObject json = (JSONObject) parser.parse(in);
+                    File destFile = null;
+
+                    Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
+
+                    String jsonId = json.get("id").toString();
+                    String installedVersion = installedVersions.get(jsonId);
+
+                    File modDownloadFile = null;
+                    String modLatestRelease = null;
+                    var modEntryList = new ArrayList<>(modRepositoryApiUrls.entrySet());
+
+                    String modApiUrl = null;
+                    Provider modProvider = null;
+                    for (Map.Entry<String, Object> entry : modEntryList) {
+                        modApiUrl = entry.getKey();
+                        String modToken = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+                        Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+                        String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
+
+                        modProvider = ProvidersRegistry.matching(modApiUrl);
+
+                        if (modProvider != null) {
+                            try {
+                                modLatestRelease = modProvider.getLatestReleaseVersion(modProvider.normalizeApi(modApiUrl).url, modToken, releasePattern, minecraftVersionRange);
+
+                                log(json.get("id") + " latest release: " + modLatestRelease);
+
+                                ids.put(jsonId, List.of(modLatestRelease, modApiUrl, modToken));
+
+                                break;
+                            }
+                            catch (Exception e) {
+                                log(String.format("Could not get the latest release of %s", e));
+                            }
+                        }
+                        else {
+                            log("Could not find a valid provider for: " + modApiUrl);
+                        }
+                    }
+
+                    if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
+                        log(jsonId + " is up to date. Skipping download.");
+                    } else {
+                        log(jsonId + " changed. Downloading new version...");
+
+                        ExecutorService modExecutor = Executors.newSingleThreadExecutor();
+
+                        for (int i = 0; i < modEntryList.size(); i++) {
+                            var entry = modEntryList.get(i);
+
+                            String apiURL = entry.getKey();
+                            String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+                            Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+                            Pattern jarPattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("jarRegex", ".*").toString());
+                            String minecraftVersionRange = (String) json.getOrDefault("minecraftVersionRange", "*");
+
+                            modProvider = ProvidersRegistry.matching(apiURL);
+
+                            if (modProvider != null) {
+                                boolean isLastEntry = (i == modEntryList.size() - 1);
+
+                                try {
+                                    stateRecorder.changeState("download");
+
+                                    Provider finalModProvider = modProvider;
+                                    String jarUrl = finalModProvider.getLatestReleaseAssetURL(finalModProvider.normalizeApi(apiURL).url, token, releasePattern, jarPattern, minecraftVersionRange);
+
+                                    modDownloadFile = new File(String.format("downloads/%s", jarUrl.substring(jarUrl.lastIndexOf("/")+1)));
+                                    modDownloadFile.getParentFile().mkdirs();
+                                    log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
+
+                                    File finalDownloadFile = modDownloadFile;
+                                    Future<File> future = modExecutor.submit(() -> downloadURL(finalModProvider::authenticate, jarUrl, finalDownloadFile, token));
+
+                                    if (isLastEntry) {
+                                        modDownloadFile = future.get();
+                                    } else {
+                                        modDownloadFile = future.get(5, TimeUnit.MINUTES);
+                                    }
+                                    break;
+
+                                } catch (TimeoutException e) {
+                                    log("Download timed out for " + apiURL + ". Trying next source...");
+                                } catch (Exception e) {
+                                    log("Error downloading from " + apiURL + ": " + e);
+                                }
+                            }
+                            else {
+                                log("Could not find a valid provider for: " + apiURL);
+                            }
+                        }
+                        modExecutor.shutdown();
+
+                        if (modDownloadFile != null) {
+                            destFile = new File(baseDir, "mods/" + modDownloadFile.getName());
+
+                            destFile.getParentFile().mkdirs();
+
+                            try {
+                                FileUtils.copyFile(modDownloadFile, destFile);
+
+                                log("Copied: " + destFile.getAbsolutePath());
+                            } catch (IOException e) {
+                                log("Error copying " + destFile.getAbsolutePath() + ": " + e);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         File unpackDir = new File("downloads/unpacked/latest-release/");
         if (!latestRelease.equals(installedMain)) {
+            if (downloadFile == null || latestRelease == null) {
+                log("Something went wrong with your downloadFile or latestRelease string and they were not initialized.");
+                stateRecorder.changeState("error");
+                cancel(true);
+                return null;
+            }
+
             log("Download complete: " + downloadFile.getAbsolutePath());
             frame.updateProgress(30);
 
@@ -575,9 +700,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
             frame.updateProgress(60);
         }
 
-        File baseDir = new File(System.getProperty("user.dir")).getParentFile();
-        File didimisssomethingDir = new File(System.getProperty("user.dir"));
-        File modsDir = new File(baseDir, "mods");
         File prevModsDir = new File(didimisssomethingDir, "mods-previous");
         if (prevModsDir.exists()) {
             FileUtils.deleteDirectory(prevModsDir);
@@ -619,15 +741,6 @@ class UpdaterWorker extends SwingWorker<Void, String> {
         }
         frame.updateProgress(80);
 
-        File additionalModsDir = new File(baseDir, "mods-additional");
-        if (additionalModsDir.exists()) {
-            log("Restoring additional mods...");
-            FileUtils.copyDirectory(additionalModsDir, modsDir);
-        }
-
-        StringBuilder releaseInfo = new StringBuilder("latest-release;" + latestRelease);
-        Map<String, List<Object>> ids = new HashMap<>();
-
         stateRecorder.changeState("update");
         log("Populating mods and configs from the unpacked release...");
         if (unpackDir.exists() && unpackDir.isDirectory()) {
@@ -647,123 +760,118 @@ class UpdaterWorker extends SwingWorker<Void, String> {
                         if (Config.get("useModsMetadataToUpdate", false) && sourceFile.toString().endsWith(".jar") && jarContainsMeta(sourceFile)) {
                             var json = readMetaFromJar(sourceFile);
 
-                            try {
-                                Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
+                            if (!Config.get("automaticallyUpdateDidIMissSomething", false) || (Config.get("automaticallyUpdateDidIMissSomething", false) && json != null && json.get("id") != "didimisssomething")) {
+                                try {
+                                    Map<String, Object> modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
 
-                                String jsonId = json.get("id").toString();
-                                String installedVersion = installedVersions.get(jsonId);
+                                    String jsonId = json.get("id").toString();
+                                    String installedVersion = installedVersions.get(jsonId);
 
-                                File modDownloadFile = null;
-                                String modLatestRelease = null;
-                                var modEntryList = new ArrayList<>(modRepositoryApiUrls.entrySet());
+                                    File modDownloadFile = null;
+                                    String modLatestRelease = null;
+                                    var modEntryList = new ArrayList<>(modRepositoryApiUrls.entrySet());
 
-                                for (Map.Entry<String, Object> entry : modEntryList) {
-                                    String apiURL = entry.getKey();
-                                    String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
-                                    Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
-                                    String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
-
-                                    var modProvider = norivensuu.didimisssomething.common.ProvidersRegistry.matching(apiURL);
-
-                                    if (modProvider != null) {
-                                        modLatestRelease = modProvider.getLatestReleaseVersion(modProvider.normalizeApi(apiURL).url, token, releasePattern, minecraftVersionRange);
-
-                                        log(json.get("id") + " latest release: " + modLatestRelease);
-
-                                        ids.put(jsonId, List.of(modLatestRelease, apiURL, token));
-                                    }
-                                    else {
-                                        log("Could not find a valid provider for: " + apiURL);
-                                    }
-                                }
-
-                                modDownloadFile = new File(String.format("downloads/%s.jar", json.get("id")));
-
-                                File dir = modDownloadFile;
-
-                                File[] jars = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
-
-                                if (jars != null && jars.length > 0) {
-                                    modDownloadFile = jars[0];
-                                } else {
-                                    log("No .jar found in " + dir.getAbsolutePath());
-                                }
-
-                                if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
-                                    log(jsonId + " is up to date. Skipping download. " + modDownloadFile);
-                                } else {
-                                    log(jsonId + " changed. Downloading new version...");
-
-                                    ExecutorService modExecutor = Executors.newSingleThreadExecutor();
-
-                                    for (int i = 0; i < modEntryList.size(); i++) {
-                                        var entry = modEntryList.get(i);
-
-                                        String apiURL = entry.getKey();
+                                    Provider modProvider = null;
+                                    String modApiUrl = null;
+                                    for (Map.Entry<String, Object> entry : modEntryList) {
+                                        modApiUrl = entry.getKey();
                                         String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
                                         Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
-                                        Pattern jarPattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("jarRegex", ".*").toString());
-                                        String minecraftVersionRange = (String) json.getOrDefault("minecraftVersionRange", "*");
+                                        String minecraftVersionRange = Config.get("minecraftVersionRange", "*");
 
-                                        var modProvider = ProvidersRegistry.matching(apiURL);
+                                        modProvider = norivensuu.didimisssomething.common.ProvidersRegistry.matching(modApiUrl);
 
                                         if (modProvider != null) {
-                                            boolean isLastEntry = (i == modEntryList.size() - 1);
+                                            modLatestRelease = modProvider.getLatestReleaseVersion(modProvider.normalizeApi(modApiUrl).url, token, releasePattern, minecraftVersionRange);
 
-                                            try {
-                                                stateRecorder.changeState("download");
+                                            log(json.get("id") + " latest release: " + modLatestRelease);
 
-                                                modDownloadFile = new File(String.format("downloads/%s.jar", json.get("id")));
-                                                modDownloadFile.getParentFile().mkdirs();
-                                                log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
-
-                                                File finalDownloadFile = modDownloadFile;
-                                                Future<File> future = modExecutor.submit(() -> downloadURL(modProvider::authenticate, modProvider.getLatestReleaseAssetURL(modProvider.normalizeApi(apiURL).url, token, releasePattern, jarPattern, minecraftVersionRange), finalDownloadFile, token));
-
-                                                if (isLastEntry) {
-                                                    modDownloadFile = future.get();
-                                                } else {
-                                                    modDownloadFile = future.get(5, TimeUnit.MINUTES);
-                                                }
-                                                break;
-
-                                            } catch (TimeoutException e) {
-                                                log("Download timed out for " + apiURL + ". Trying next source...");
-                                            } catch (Exception e) {
-                                                log("Error downloading from " + apiURL + ": " + e.getMessage());
-                                            }
+                                            ids.put(jsonId, List.of(modLatestRelease, modApiUrl, token));
                                         }
                                         else {
-                                            log("Could not find a valid provider for: " + apiURL);
+                                            log("Could not find a valid provider for: " + modApiUrl);
                                         }
                                     }
-                                    modExecutor.shutdown();
+
+                                    if (installedVersion != null && installedVersion.equals(modLatestRelease)) {
+                                        log(jsonId + " is up to date. Skipping download.");
+                                    } else {
+                                        log(jsonId + " changed. Downloading new version...");
+
+                                        ExecutorService modExecutor = Executors.newSingleThreadExecutor();
+
+                                        for (int i = 0; i < modEntryList.size(); i++) {
+                                            var entry = modEntryList.get(i);
+
+                                            String apiURL = entry.getKey();
+                                            String token = ((JSONObject) entry.getValue()).getOrDefault("token", "").toString();
+                                            Pattern releasePattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("releaseRegex", ".*").toString());
+                                            Pattern jarPattern = Pattern.compile(((JSONObject) entry.getValue()).getOrDefault("jarRegex", ".*").toString());
+                                            String minecraftVersionRange = (String) json.getOrDefault("minecraftVersionRange", "*");
+
+                                            modProvider = ProvidersRegistry.matching(apiURL);
+
+                                            if (modProvider != null) {
+                                                boolean isLastEntry = (i == modEntryList.size() - 1);
+
+                                                try {
+                                                    stateRecorder.changeState("download");
+
+                                                    Provider finalModProvider = modProvider;
+                                                    String jarUrl = finalModProvider.getLatestReleaseAssetURL(finalModProvider.normalizeApi(apiURL).url, token, releasePattern, jarPattern, minecraftVersionRange);
+
+                                                    modDownloadFile = new File(String.format("downloads/%s", jarUrl.substring(jarUrl.lastIndexOf("/")+1)));
+                                                    modDownloadFile.getParentFile().mkdirs();
+                                                    log(String.format("Downloading %s archive from: ", json.get("id")) + apiURL);
+
+                                                    File finalDownloadFile = modDownloadFile;
+                                                    Future<File> future = modExecutor.submit(() -> downloadURL(finalModProvider::authenticate, jarUrl, finalDownloadFile, token));
+
+                                                    if (isLastEntry) {
+                                                        modDownloadFile = future.get();
+                                                    } else {
+                                                        modDownloadFile = future.get(5, TimeUnit.MINUTES);
+                                                    }
+                                                    break;
+
+                                                } catch (TimeoutException e) {
+                                                    log("Download timed out for " + apiURL + ". Trying next source...");
+                                                } catch (Exception e) {
+                                                    log("Error downloading from " + apiURL + ": " + e);
+                                                }
+                                            }
+                                            else {
+                                                log("Could not find a valid provider for: " + apiURL);
+                                            }
+                                        }
+                                        modExecutor.shutdown();
+                                    }
+
+                                    if (modDownloadFile != null) {
+                                        destFile = new File(baseDir, "mods/" + modDownloadFile.getName());
+
+                                        destFile.getParentFile().mkdirs();
+
+                                        sourceFile = modDownloadFile;
+                                    }
                                 }
-
-                                sourceFile = modDownloadFile;
-
-                                if (sourceFile != null) {
-                                    destFile = new File(baseDir, "mods/" + sourceFile.getName());
-
-                                    destFile.getParentFile().mkdirs();
+                                catch (Exception e) {
+                                    log(Arrays.toString(e.getStackTrace()));
                                 }
-
-                                modDownloadFile.getParentFile().delete();
-                            }
-                            catch (Exception e) {
-                                log(Arrays.toString(e.getStackTrace()));
                             }
                         }
 
-                        try {
-                            FileUtils.copyFile(sourceFile, destFile);
+                        if (!Config.get("automaticallyUpdateDidIMissSomething", false) || (Config.get("automaticallyUpdateDidIMissSomething", false) && !sourceFile.getName().startsWith("didimisssomething-"))) {
+                            try {
+                                FileUtils.copyFile(sourceFile, destFile);
 
-                            Files.writeString(referenceFile.toPath(),
-                                    destFile.getAbsolutePath() + System.lineSeparator(),
-                                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                            log("Copied: " + destFile.getAbsolutePath());
-                        } catch (IOException ex) {
-                            log("Error copying " + destFile.getAbsolutePath() + ": " + ex.getMessage());
+                                Files.writeString(referenceFile.toPath(),
+                                        destFile.getAbsolutePath() + System.lineSeparator(),
+                                        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                                log("Copied: " + destFile.getAbsolutePath());
+                            } catch (IOException e) {
+                                log("Error copying " + destFile.getAbsolutePath() + ": " + e);
+                            }
                         }
                     });
         } else {

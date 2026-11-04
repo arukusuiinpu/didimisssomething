@@ -1,8 +1,9 @@
 package norivensuu.didimisssomething;
 
 import net.minidev.json.JSONObject;
+import net.minidev.json.parser.JSONParser;
 import norivensuu.didimisssomething.common.Config;
-import norivensuu.didimisssomething.common.Main;
+import norivensuu.didimisssomething.common.Common;
 import norivensuu.didimisssomething.common.ProvidersBenchmark;
 import norivensuu.didimisssomething.common.providers.ProviderGithub;
 import norivensuu.didimisssomething.common.providers.ProviderGitlab;
@@ -12,21 +13,18 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.InputStream;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.security.MessageDigest;
 import java.util.*;
 import java.util.regex.Pattern;
 
 import static norivensuu.didimisssomething.util.Checksums.*;
-import static norivensuu.didimisssomething.common.Main.*;
+import static norivensuu.didimisssomething.common.Common.*;
 
 public class DidIMissSomething {
 
-    public static final String MOD_ID = Main.MOD_ID;
+    public static final String MOD_ID = Common.MOD_ID;
 
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -67,8 +65,6 @@ public class DidIMissSomething {
 
                     var provider = ProvidersRegistry.matching(apiURL);
 
-                    LOGGER.info("Testing provider: {}", provider.id);
-
                     if (provider != null) {
                         File folder = new File(projectPath + "/didimisssomething/");
                         if (!folder.exists()) folder.mkdir();
@@ -79,6 +75,30 @@ public class DidIMissSomething {
                         List<String> lines = Files.readAllLines(releaseFile.toPath());
                         boolean allUpToDate = true;
 
+                        if (Config.get("automaticallyUpdateDidIMissSomething", false) && lines.stream().noneMatch((s) -> s.startsWith("didimisssomething;"))) {
+
+                            try (InputStream in = Common.class.getResourceAsStream("/didimisssomething.meta.json")) {
+                                var parser = new JSONParser(JSONParser.MODE_PERMISSIVE_WITH_INCOMPLETE);
+
+                                JSONObject json = (JSONObject) parser.parse(in);
+
+                                if (json != null) {
+                                    var modRepositoryApiUrls = (Map<String, Object>) json.getOrDefault("modRepositoryApiUrls", Map.of());
+
+                                    if (!modRepositoryApiUrls.isEmpty()) {
+                                        for (var dimsEntry : ProvidersBenchmark.pingProviders(modRepositoryApiUrls).entrySet()) {
+                                            String dimsApiURL = dimsEntry.getKey();
+                                            String dimsToken = ((JSONObject) dimsEntry.getValue()).getOrDefault("token", "").toString();
+
+                                            lines.add(String.format("didimisssomething;;%s;%s", dimsApiURL, dimsToken));
+
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         for (String line : lines) {
                             if (line.startsWith("latest-release;")) {
                                 String currentRelease = line.split(";")[1].trim();
@@ -88,7 +108,7 @@ public class DidIMissSomething {
                                     allUpToDate = false;
                                     break;
                                 }
-                            } else if (!line.isBlank() && line.contains(";") && Config.get("useModsMetadataToUpdate", false)) {
+                            } else if (!line.isBlank() && line.contains(";") && ((Config.get("useModsMetadataToUpdate", false) && (!Config.get("automaticallyUpdateDidIMissSomething", false) || (Config.get("automaticallyUpdateDidIMissSomething", false) && !line.startsWith("didimisssomething;")))) || (Config.get("automaticallyUpdateDidIMissSomething", false) && line.startsWith("didimisssomething;")))) {
                                 String[] parts = line.split(";");
                                 if (parts.length >= 3) {
                                     String modName = parts[0].trim();
@@ -97,7 +117,9 @@ public class DidIMissSomething {
                                     String modToken = "";
                                     if (parts.length >= 4) modToken = parts[3].trim();
 
-                                    String latestModRelease = provider.getLatestReleaseVersion(provider.normalizeApi(modApiUrl).url, modToken, releasePattern, minecraftVersionRange);
+                                    var modProvider = ProvidersRegistry.matching(modApiUrl);
+
+                                    String latestModRelease = modProvider.getLatestReleaseVersion(modProvider.normalizeApi(modApiUrl).url, modToken, releasePattern, minecraftVersionRange);
 
                                     LOGGER.info("{} {} vs {}", modName, latestModRelease, currentVersion);
 
